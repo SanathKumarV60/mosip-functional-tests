@@ -149,16 +149,114 @@ public class PacketMakerService {
         return true;
     }
 
+    private List<String> getMissingAttributeList(String schemaJson, JSONObject idJson){
+    	//SKV - check missing mandatory attributes
+        JSONObject schema = new JSONObject(schemaJson);
+        schema = schema.getJSONObject("properties");
+        schema  = schema.getJSONObject("identity");
+        JSONArray schemaReqd = schema.getJSONArray("required");
+
+        List<String> notFound = new ArrayList<String>();
+        
+        for(int i=0; i < schemaReqd.length();i++) {
+        	String attrName = schemaReqd.getString(i);
+        		//check whether merged map contain this key
+        	if( !idJson.has(attrName))
+        		notFound.add(attrName);
+        }
+        return notFound;
+
+    }
+    private String fillMissingAttributes( List<String> missingAttributes, String dataToMerge) {
+    	
+    	JSONObject data = new JSONObject(dataToMerge);
+    	JSONObject jb = new JSONObject(dataToMerge).getJSONObject("identity");
+        for(String s: missingAttributes) {
+        	if(s.toLowerCase().matches(".*individual.*biometric.*")) {
+        		JSONObject bio = new JSONObject();
+        		bio.put("format", "cbeff");
+        		bio.put("version", "1");
+        		bio.put("value", "individualBiometrics_bio_CBEFF");
+        		jb.put(s, bio);
+        	}
+        	else if(s.toLowerCase().contains("city"))
+        	{
+        		//copy from city value
+        	
+        		JSONArray cityArr = jb.getJSONArray( "City");
+        		jb.put(s, cityArr);
+        		
+        	}
+        	//pobCountry
+        	else if(s.toLowerCase().contains("country"))
+        	{
+        	    JSONObject bio = new JSONObject();
+        	    bio.put("language", "eng");
+        	    bio.put("value","Abra");
+        	    jb.put(s, new JSONArray().put( bio));
+    		
+        	}
+        	//province
+        	else if(s.toLowerCase().contains("province"))
+        	{
+        		//copy from city value
+        	
+        		JSONArray cityArr = jb.getJSONArray( "province");
+        		jb.put(s, cityArr);
+        		
+        	}
+        	else if(s.toLowerCase().matches(".*proof.*address.*")) {
+        		JSONObject bio = new JSONObject();
+        		bio.put("type", "DOC023");
+        		bio.put("format", "PDF");
+        		bio.put("value", "proofOfAddress");
+        		jb.put(s, bio);
+        	}
+        	else if(s.toLowerCase().matches(".*proof.*identity.*")) {
+        		JSONObject bio = new JSONObject();
+        		bio.put("type", "DOC018");
+        		bio.put("format", "PDF");
+        		bio.put("value", "proofOfIdentity");
+        		jb.put(s, bio);
+        	}
+        	else
+        	if(s.toLowerCase().matches(".*parent.*biometric.*")) {
+        		JSONObject bio = new JSONObject();
+        		bio.put("format", "cbeff");
+        		bio.put("version", "1");
+        		bio.put("value", "individualBiometrics_bio_CBEFF");
+        		jb.put(s, bio);
+        	}
+        	else
+        	{
+        		JSONObject bio = new JSONObject();
+        		bio.put("language", "eng");
+        		bio.put("value","101755");
+        		jb.put(s, bio);
+        	}
+
+        }
+    	data.put("identity", jb);
+    	return data.toString();
+    }
+    
     public boolean createPacket(String containerRootFolder, String regId, String dataFilePath, String type) throws Exception{
         String packetRootFolder = getPacketRoot(getProcessRoot(containerRootFolder), regId, type);
         String templateFile = getIdJSONFileLocation(packetRootFolder);
 
         String dataToMerge = Files.readString(Path.of(dataFilePath));
         JSONObject jb = new JSONObject(dataToMerge).getJSONObject("identity");
+        
         String schemaVersion = jb.optString("IDSchemaVersion", "0");
         String schemaJson = schemaUtil.getAndSaveSchema(schemaVersion, workDirectory);
+        if(type.equals("id")){
+        		List<String> missingAttributes = getMissingAttributeList(schemaJson, jb);
+        		dataToMerge = fillMissingAttributes( missingAttributes, dataToMerge);
+    	}
         JSONObject jbToMerge = schemaUtil.getPacketIDData(schemaJson, dataToMerge, type);
         Map<?,?> mergedJsonMap = mergeJSON(templateFile, jbToMerge);
+        
+                
         if(!writeJSONFile(mergedJsonMap, templateFile)) {
             logger.error("Error creating packet {} ", regId);
             return false;
@@ -205,6 +303,7 @@ public class PacketMakerService {
 
     public boolean packContainer(String containerRootFolder) throws Exception{
         Path path = Path.of(containerRootFolder);
+      
         boolean result = zipAndEncrypt(path);
         Files.delete(Path.of(path + "_unenc.zip"));
         return result;
@@ -215,7 +314,7 @@ public class PacketMakerService {
         zipper.zipFolder(zipSrcFolder, finalZipFile);
         try(FileInputStream zipFile = new FileInputStream(finalZipFile.toFile().getAbsolutePath())){
             boolean result = cryptoUtil.encryptPacket(zipFile.readAllBytes(), centerId + UNDERSCORE + machineId, Path.of(zipSrcFolder+".zip").toString() );
-            //Files.delete(finalZipFile);
+           // Files.delete(finalZipFile);
             if (!result){
                 logger.error("Encryption failed!!! ");
                 return false;

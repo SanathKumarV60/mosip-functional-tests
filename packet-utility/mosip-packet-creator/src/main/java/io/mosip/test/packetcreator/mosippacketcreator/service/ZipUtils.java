@@ -25,7 +25,14 @@ public class ZipUtils {
         try(ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipPath.toFile()))){
             Files.walkFileTree(sourceFolderPath, new SimpleFileVisitor<Path>() {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    zos.putNextEntry(new ZipEntry(sourceFolderPath.relativize(file).toString()));
+                	
+                	String targetFile = sourceFolderPath.relativize(file).toString();
+                	logger.info("OS=>"+System.getProperty("os.name"));
+                    
+                	if(System.getProperty("os.name").toLowerCase().contains("windows"))
+                		targetFile = targetFile.replace("\\", "/");
+                	logger.info(targetFile);
+                    zos.putNextEntry(new ZipEntry(targetFile));
                     Files.copy(file, zos);
                     zos.closeEntry();
                     return FileVisitResult.CONTINUE;

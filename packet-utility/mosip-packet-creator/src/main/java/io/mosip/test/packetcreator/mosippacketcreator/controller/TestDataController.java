@@ -101,5 +101,17 @@ public class TestDataController {
                 Cron.every5minutes());
         return response;
     }
+    @GetMapping(value = "/makepacketandsync/{preregId}")
+    public @ResponseBody String makePacketAndSync(@PathVariable("preregId") String preregId) {
+
+    	try{    	
+    	
+    		return packetSyncService.makePacketAndSync(preregId).toString();
+    	
+    	} catch (Exception ex){
+             logger.error("makePacketAndSync", ex);
+    	}
+    	return "{Failed}";
+    }
         
 }

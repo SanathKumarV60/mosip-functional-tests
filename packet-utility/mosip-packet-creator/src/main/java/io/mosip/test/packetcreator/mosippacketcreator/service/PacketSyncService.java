@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -32,6 +33,17 @@ public class PacketSyncService {
     @Autowired
     private CryptoUtil cryptoUtil;
 
+    @Autowired
+    private PreregSyncService preregSyncService;
+    
+    @Autowired
+    private ZipUtils zipUtils;
+    @Autowired
+    private PacketMakerService packetMakerService;
+    
+    @Autowired
+    private PacketSyncService packetSyncService;
+    
     @Value("${mosip.test.primary.langcode}")
     private String primaryLangCode;
 
@@ -50,6 +62,60 @@ public class PacketSyncService {
     @Value("${mosip.test.packet.uploadapi}")
     private String uploadapi;
 
+    public JSONObject makePacketAndSync(String preregId) throws Exception {
+    	logger.info("makePacketAndSync for PRID : {}", preregId);
+
+    	String location = preregSyncService.downloadPreregPacket( preregId);
+        logger.info("Downloaded the prereg packet in {} ", location);
+        File targetDirectory = Path.of(preregSyncService.getWorkDirectory(), preregId).toFile();
+        if(!targetDirectory.exists()  && !targetDirectory.mkdir())
+            throw new Exception("Failed to create target directory ! PRID : " + preregId);
+
+        if(!zipUtils.unzip(location, targetDirectory.getAbsolutePath()))
+            throw new Exception("Failed to unzip pre-reg packet >> " + preregId);
+
+        Path idJsonPath = Path.of(targetDirectory.getAbsolutePath(), "ID.json");
+
+        logger.info("Unzipped the prereg packet {}, ID.json exists : {}", preregId, idJsonPath.toFile().exists());
+
+        String packetPath = packetMakerService.createContainer(idJsonPath.toString(),null);
+
+        logger.info("Packet created : {}", packetPath);
+
+        String response = packetSyncService.syncPacketRid(packetPath, "dummy", "APPROVED",
+                "dummy");
+
+        logger.info("RID Sync response : {}", response);
+    	JSONObject functionResponse = new JSONObject();
+    	JSONObject nobj = new JSONObject();
+    
+        JSONArray packets =  new JSONArray(response);
+        if(packets.length() > 0) {
+        	JSONObject resp = (JSONObject) packets.get(0);
+        	if(resp.getString("status").equals("SUCCESS")) {
+        	//RID Sync response : [{"registrationId":"10010100241000120201214134111","status":"SUCCESS"}]
+        		String rid = resp.getString("registrationId");
+        		response =  packetSyncService.uploadPacket(packetPath);
+        		logger.info("Packet Sync response : {}", response);
+        		JSONObject obj =  new JSONObject(response);
+        		if(obj.getString("status").equals("Packet has reached Packet Receiver")) {
+        	        		 
+        		//{"status":"Packet has reached Packet Receiver"}
+        			
+        			functionResponse.put("response", nobj );
+        			nobj.put("status", "SUCCESS");
+        			nobj.put("registrationId", rid);
+        			return functionResponse;
+        		}
+        	}
+        }
+    	functionResponse.put("response", nobj );
+		nobj.put("status", "Failed");
+		
+        //{"status": "Failed"} or {"status": "Passed"}  instead of "Failed"
+        return functionResponse;
+    	
+    }
     public String syncPacketRid(String containerFile, String name,
                                 String supervisorStatus, String supervisorComment) throws Exception {
         Path container = Path.of(containerFile);

@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.metadata.TableMetaDataProviderFactory;
 import org.springframework.stereotype.Component;
 import tss.Tpm;
 import tss.TpmFactory;
@@ -52,6 +53,9 @@ public class CryptoUtil {
     @Value("${mosip.test.tpm.available}")
     private boolean tpmAvailable;
 
+    @Value("${mosip.test.tpm.simulator}")
+    private boolean tpmSimulator;
+    
     @Value("${mosip.test.crypto.prependthumbprint}")
     private boolean prependthumbprint;
 
@@ -67,7 +71,10 @@ public class CryptoUtil {
     @PostConstruct
     public void initialize() {
         if(tpmAvailable) {
-            tpm = TpmFactory.platformTpm();
+        	if(tpmSimulator)
+        		tpm = TpmFactory.localTpmSimulator();
+        	else
+        		tpm = TpmFactory.platformTpm();
             signingPrimaryResponse = createSigningKey();
         }
     }

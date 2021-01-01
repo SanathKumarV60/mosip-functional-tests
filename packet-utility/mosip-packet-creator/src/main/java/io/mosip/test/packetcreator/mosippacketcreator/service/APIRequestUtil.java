@@ -1,7 +1,7 @@
 package io.mosip.test.packetcreator.mosippacketcreator.service;
 
 import java.io.File;
-import java.net.MalformedURLException;
+
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;

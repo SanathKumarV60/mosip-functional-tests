@@ -125,7 +125,16 @@ public class PacketMakerService {
         try (InputStream inputStream = new FileInputStream(dataFile) ) {
             String dataToMerge = new String(inputStream.readAllBytes(),StandardCharsets.UTF_8);
             JSONObject data = new JSONObject(dataToMerge);
-            return mergeJSON(templateFile, data);
+            
+            //SKV - custom json merge
+            try (InputStream inputStream2 = new FileInputStream(templateFile) ) {
+            	String templateData = new String(inputStream2.readAllBytes(),StandardCharsets.UTF_8);
+            	JSONObject data1 = new JSONObject(templateData);
+                  
+            	JSONObject result  = merge(data1,data);
+            	return result.toMap();
+            }         
+            //return mergeJSON(templateFile, data);
         }
     }
 
@@ -249,10 +258,13 @@ public class PacketMakerService {
         
         String schemaVersion = jb.optString("IDSchemaVersion", "0");
         String schemaJson = schemaUtil.getAndSaveSchema(schemaVersion, workDirectory);
+     
         if(type.equals("id")){
         		List<String> missingAttributes = getMissingAttributeList(schemaJson, jb);
+        
         		dataToMerge = fillMissingAttributes( missingAttributes, dataToMerge);
     	}
+    
         JSONObject jbToMerge = schemaUtil.getPacketIDData(schemaJson, dataToMerge, type);
         Map<?,?> mergedJsonMap = mergeJSON(templateFile, jbToMerge);
         
@@ -398,6 +410,47 @@ public class PacketMakerService {
         return true;
         
     }
+
+	public JSONObject merge(JSONObject mainNode, JSONObject updateNode) {
+
+	    Iterator<String> fieldNames = updateNode.keys();
+
+	    while (fieldNames.hasNext()) {
+	        String updatedFieldName = fieldNames.next();
+	        Object valueToBeUpdatedO = mainNode.get(updatedFieldName);
+	        Object updatedValueO = updateNode.get(updatedFieldName);
+
+	        // If the node is an @ArrayNode
+	        if (valueToBeUpdatedO != null && valueToBeUpdatedO instanceof JSONArray && 
+	            updatedValueO instanceof JSONArray) {
+	        	JSONArray valueToBeUpdated = (JSONArray)valueToBeUpdatedO;
+	        	JSONArray updatedValue = (JSONArray) updatedValueO;
+	        	
+	            // running a loop for all elements of the updated ArrayNode
+	        	
+	            for (int i = 0; i < updatedValue.length(); i++) {
+	                JSONObject updatedChildNode = updatedValue.getJSONObject(i);
+	                // Create a new Node in the node that should be updated, if there was no corresponding node in it
+	                // Use-case - where the updateNode will have a new element in its Array
+	                if (valueToBeUpdated.length() <= i) {
+	                    valueToBeUpdated.put(updatedChildNode);
+	                }
+	                // getting reference for the node to be updated
+	                JSONObject childNodeToBeUpdated = valueToBeUpdated.getJSONObject(i);
+	                merge(childNodeToBeUpdated, updatedChildNode);
+	            }
+	        // if the Node is an @ObjectNode
+	        } else if (valueToBeUpdatedO != null && valueToBeUpdatedO instanceof JSONObject) {
+	        	
+	            merge((JSONObject)valueToBeUpdatedO,(JSONObject) updatedValueO);
+	        } else {
+	            if (mainNode instanceof JSONObject) {
+	                mainNode.put(updatedFieldName,updatedValueO);
+	            }
+	        }
+	    }
+	    return mainNode;
+	}
 
     private String generateRegId() {
 		SimpleDateFormat f = new SimpleDateFormat("yyyyMMddHHmmss");

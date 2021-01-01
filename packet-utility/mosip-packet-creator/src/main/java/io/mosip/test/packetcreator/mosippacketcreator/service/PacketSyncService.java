@@ -3,13 +3,32 @@ package io.mosip.test.packetcreator.mosippacketcreator.service;
 import org.apache.commons.codec.binary.Base64;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.mosip.dataprovider.ResidentDataProvider;
+import org.mosip.dataprovider.models.AppointmentModel;
+import org.mosip.dataprovider.models.AppointmentTimeSlotModel;
+import org.mosip.dataprovider.models.CenterDetailsModel;
+import org.mosip.dataprovider.models.MosipDocument;
+import org.mosip.dataprovider.models.ResidentModel;
+import org.mosip.dataprovider.test.CreatePersona;
+import org.mosip.dataprovider.test.ResidentPreRegistration;
+import org.mosip.dataprovider.test.prereg.PreRegistrationSteps;
+import org.mosip.dataprovider.util.Gender;
+import org.mosip.dataprovider.util.ResidentAttribute;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.mosip.test.packetcreator.mosippacketcreator.dto.ResidentRequestDto;
+import variables.VariableManager;
+
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -20,6 +39,8 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
 
 @Service
 public class PacketSyncService {
@@ -62,6 +83,67 @@ public class PacketSyncService {
     @Value("${mosip.test.packet.uploadapi}")
     private String uploadapi;
 
+    @Value("${mosip.test.prereg.mapfile:Preregistration.properties}")
+    private String preRegMapFile;
+
+  //this will generate the requested number of resident data
+    // Save the data in configured path as JSON
+    // return list of resident Ids
+    public String generateResidentData(int count,ResidentRequestDto residentRequestDto) {
+    	
+    	  logger.info("gen Res Data " + residentRequestDto.getAge() + " " 
+    	  + residentRequestDto.getGender() 
+    	  + " "+ residentRequestDto.getPrimaryLanguage());
+    	
+		ResidentDataProvider provider = new ResidentDataProvider();
+		Gender enumGender = residentRequestDto.getGender(); //Gender.valueOf(residentRequestDto.getGender());
+		provider.addCondition(ResidentAttribute.RA_Count, count);
+		if(residentRequestDto.getAge() != null && !residentRequestDto.getAge().equals(""))
+			provider.addCondition(ResidentAttribute.RA_Age, ResidentAttribute.valueOf(residentRequestDto.getAge()));
+		else
+			provider.addCondition(ResidentAttribute.RA_Age, ResidentAttribute.RA_Adult);
+		provider.addCondition(ResidentAttribute.RA_Gender, enumGender);
+		if(residentRequestDto.getPrimaryLanguage() == null || residentRequestDto.getPrimaryLanguage().equals(""))
+			provider.addCondition(ResidentAttribute.RA_PRIMARAY_LANG, "eng");
+		else
+			provider.addCondition(ResidentAttribute.RA_PRIMARAY_LANG, residentRequestDto.getPrimaryLanguage());
+
+		if(! (residentRequestDto.getSecondaryLanguage() == null || residentRequestDto.getSecondaryLanguage().equals("")))
+			provider.addCondition(ResidentAttribute.RA_SECONDARY_LANG, residentRequestDto.getSecondaryLanguage());
+		
+		logger.info("before Genrate");
+		List<ResidentModel> lst = provider.generate();
+		logger.info("After Genrate");
+		
+		ObjectMapper Obj = new ObjectMapper();
+		JSONArray outIds = new JSONArray();
+		
+		try {
+			String tmpDir;
+			
+			tmpDir = Files.createTempDirectory("residents_").toFile().getAbsolutePath();
+			
+			for(ResidentModel r: lst) {
+				String jsonStr = Obj.writeValueAsString(r);
+				Path tempPath = Path.of(tmpDir, r.getId() +".json");
+				Files.write(tempPath, jsonStr.getBytes());
+				
+				JSONObject id  = new JSONObject();
+				id.put("id", r.getId());
+				id.put("path", tempPath.toFile().getAbsolutePath());
+				outIds.put(id);
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		JSONObject response = new JSONObject();
+		response.put("status", "SUCCESS");
+		response.put("response",outIds);
+    	return response.toString();
+    			//"{\"status\":\"SUCCESS\"}";
+    }
     public JSONObject makePacketAndSync(String preregId) throws Exception {
     	logger.info("makePacketAndSync for PRID : {}", preregId);
 
@@ -164,5 +246,108 @@ public class PacketSyncService {
         return response.toString();
     }
 
-
+    public String preRegisterResident(List<String> personaFilePath) throws IOException {
+    	StringBuilder builder = new StringBuilder();
+    	
+    	for(String path: personaFilePath) {
+    		ResidentModel resident = readPersona(path);
+    		String response = PreRegistrationSteps.postApplication(resident);
+    		//preregid
+    		saveRegIDMap(response, path);
+    		builder.append(response);
+    	}
+    	return builder.toString();
+    }
+    void saveRegIDMap(String preRegId, String personaFilePath) throws IOException{
+    	 
+    	FileReader reader=new FileReader(preRegMapFile);  
+    	Properties p=new Properties();  
+    	p.load(reader);
+    	p.put(preRegId,  personaFilePath);
+    	p.store(new FileWriter(preRegMapFile),"PreRegID to persona mapping file");  
+    	
+    }
+    String getPersona(String preRegId) {
+    	try {
+    		FileReader reader=new FileReader(preRegMapFile);  
+    		Properties p=new Properties();  
+    		p.load(reader);
+    		return p.getProperty(preRegId);
+    	} catch(IOException e) {
+    		e.printStackTrace();
+    	}
+    	return null;
+    }
+    public String requestOtp(List<String> personaFilePath, String to) throws IOException {
+    	StringBuilder builder = new StringBuilder();
+    	
+    	
+    	for(String path: personaFilePath) {
+    		ResidentModel resident = readPersona(path);
+    		ResidentPreRegistration preReg = new ResidentPreRegistration(resident);
+    		preReg.sendOtpTo(to);
+    		
+    	}
+    	return builder.toString();
+    }
+    public String verifyOtp(String personaFilePath, String to, String otp) throws IOException {
+    
+    	ResidentModel resident = readPersona(personaFilePath);
+    	ResidentPreRegistration preReg = new ResidentPreRegistration(resident);
+    	
+    	preReg.fetchOtp();
+    	return preReg.verifyOtp(to,otp);
+    		
+    }
+    public String bookAppointment( String preRegID,int nthSlot) {
+   	
+    String retVal= "{\"Failed\"}";
+    Boolean bBooked = false;
+	
+   	 AppointmentModel res = PreRegistrationSteps.getAppointments();
+		
+		for( CenterDetailsModel a: res.getAvailableDates()) {
+			if(!a.getHoliday()) {
+				for(AppointmentTimeSlotModel ts: a.getTimeslots()) {
+					if(ts.getAvailability() > 0) {
+						nthSlot--;
+						if(nthSlot ==0) {
+							retVal =PreRegistrationSteps.bookAppointment(preRegID,a.getDate(),res.getRegCenterId(),ts);
+							bBooked = true;
+							
+							break;
+						}
+					}
+				}
+			}
+			if(bBooked) break;
+		}
+		return retVal;
+    }
+   
+    public String uploadDocuments(String personaFilePath, String preregId) throws IOException {
+    
+    	String response = "";
+    	ResidentModel resident = readPersona(personaFilePath);
+    	 
+    	//System.out.println("uploadProof " + docCategory);
+   	 
+    	for(MosipDocument a: resident.getDocuments()) {
+    		JSONObject respObject = PreRegistrationSteps.UploadDocument(a.getDcoCategoryName(),
+				 a.getType().get(0).getCode(),
+				 a.getDocCategoryLang(), a.getDocs().get(0) ,preregId);
+    		if(respObject != null)
+    			response = response + respObject.toString();
+    	}
+		    
+    	return response;
+    }
+    
+    ResidentModel readPersona(String filePath) throws IOException {
+    	
+    	ObjectMapper obj = new ObjectMapper();
+    	byte[] bytes = Files.readAllBytes(Path.of(filePath));
+		return obj.readValue(bytes, ResidentModel.class);
+		
+    }
 }

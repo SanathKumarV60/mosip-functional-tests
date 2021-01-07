@@ -145,12 +145,20 @@ public class PacketMakerService {
      * @return - the merged JSON as a generic map Map<?,?>
      */
     public Map<?,?> mergeJSON(String templateFile, JSONObject data) throws Exception{
+    	/*
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.setDefaultMergeable(false).configOverride(ArrayList.class).setMergeable(false);
         Map<?,?> genericJSONObject = objectMapper.readValue(Paths.get(templateFile).toFile(), Map.class);
         String dataToMerge = data.toString();
         ObjectReader objectReader = objectMapper.readerForUpdating(genericJSONObject);
-        return objectReader.readValue(dataToMerge); 
+        return objectReader.readValue(dataToMerge);*/
+        try (InputStream inputStream2 = new FileInputStream(templateFile) ) {
+        	String templateData = new String(inputStream2.readAllBytes(),StandardCharsets.UTF_8);
+        	JSONObject data1 = new JSONObject(templateData);
+        	JSONObject result  = merge(data1,data);
+        	return result.toMap();
+    
+        }
     }
 
     public boolean createPacketRandom(String containerRootFolder, String regId, String templateFilePath, String type){
@@ -259,13 +267,14 @@ public class PacketMakerService {
         String schemaVersion = jb.optString("IDSchemaVersion", "0");
         String schemaJson = schemaUtil.getAndSaveSchema(schemaVersion, workDirectory);
      
+      /* 
         if(type.equals("id")){
         		List<String> missingAttributes = getMissingAttributeList(schemaJson, jb);
         
         		dataToMerge = fillMissingAttributes( missingAttributes, dataToMerge);
-    	}
-    
-        JSONObject jbToMerge = schemaUtil.getPacketIDData(schemaJson, dataToMerge, type);
+    	} 
+       */
+      JSONObject jbToMerge = schemaUtil.getPacketIDData(schemaJson, dataToMerge, type);
         Map<?,?> mergedJsonMap = mergeJSON(templateFile, jbToMerge);
         
                 
@@ -326,7 +335,7 @@ public class PacketMakerService {
         zipper.zipFolder(zipSrcFolder, finalZipFile);
         try(FileInputStream zipFile = new FileInputStream(finalZipFile.toFile().getAbsolutePath())){
             boolean result = cryptoUtil.encryptPacket(zipFile.readAllBytes(), centerId + UNDERSCORE + machineId, Path.of(zipSrcFolder+".zip").toString() );
-           // Files.delete(finalZipFile);
+           // Dont uncomment this: Files.delete(finalZipFile);
             if (!result){
                 logger.error("Encryption failed!!! ");
                 return false;
@@ -417,8 +426,12 @@ public class PacketMakerService {
 
 	    while (fieldNames.hasNext()) {
 	        String updatedFieldName = fieldNames.next();
-	        Object valueToBeUpdatedO = mainNode.get(updatedFieldName);
-	        Object updatedValueO = updateNode.get(updatedFieldName);
+	        Object valueToBeUpdatedO = null;
+	        Object updatedValueO =null;
+	        if(mainNode.has(updatedFieldName))
+	        	valueToBeUpdatedO = mainNode.get(updatedFieldName);
+	        if(updateNode.has(updatedFieldName))
+		        updatedValueO = updateNode.get(updatedFieldName);
 
 	        // If the node is an @ArrayNode
 	        if (valueToBeUpdatedO != null && valueToBeUpdatedO instanceof JSONArray && 

@@ -1,9 +1,9 @@
 package io.mosip.test.packetcreator.mosippacketcreator.controller;
 
-import java.io.IOException;
 import java.util.Base64;
 
 import io.mosip.test.packetcreator.mosippacketcreator.dto.PacketCreateDto;
+import io.mosip.test.packetcreator.mosippacketcreator.dto.PersonaRequestDto;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.PreRegisterRequestDto;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.ResidentRequestDto;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.SyncRidDto;
@@ -28,6 +28,9 @@ public class TestDataController {
 
     @Value("${mosip.test.persona.configpath}")
 	private String personaConfigPath;
+    
+    @Value("${mosip.test.persona.Angulipath}")
+	private String personaAnguliPath;
     
     @Autowired
     PacketMakerService pkm;
@@ -112,22 +115,29 @@ public class TestDataController {
     public @ResponseBody String makePacketAndSync(@PathVariable("preregId") String preregId) {
 
     	try{    	
-    	
-    		return packetSyncService.makePacketAndSync(preregId).toString();
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
+    		return packetSyncService.makePacketAndSync(preregId,null).toString();
     	
     	} catch (Exception ex){
              logger.error("makePacketAndSync", ex);
     	}
     	return "{Failed}";
     }
-    @PostMapping(value = "/generateResident/{count}")
-    public @ResponseBody String generateResidentData(@RequestBody ResidentRequestDto residentRequestDto, @PathVariable("count") int count) {
+    @PostMapping(value = "/resident/{count}")
+    public @ResponseBody String generateResidentData(@RequestBody PersonaRequestDto residentRequestDto, @PathVariable("count") int count) {
 
     	try{
     		logger.info("Persona Config Path="+ personaConfigPath );
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
+    		if(personaAnguliPath !=null && !personaAnguliPath.equals("")) {
+    			DataProviderConstants.ANGULI_PATH = personaAnguliPath;
+    		}
+    		logger.info("personaAnguliPath ="+ DataProviderConstants.ANGULI_PATH );
+    		
     		logger.info("Resource Path="+ DataProviderConstants.RESOURCE );
     		logger.info("DOC_Template Path="+ DataProviderConstants.RESOURCE+DataProviderConstants.DOC_TEMPLATE_PATH);
     		return packetSyncService.generateResidentData(count,residentRequestDto).toString();
@@ -137,11 +147,34 @@ public class TestDataController {
     	}
     	return "{Failed}";
     }    
+    @PostMapping(value = "/updateresident")
+    public @ResponseBody String updateResidentData(@RequestBody PersonaRequestDto personaRequestDto ,
+    		//@PathVariable("id") int id,
+    		@RequestParam(name = "UIN", required = false) String uin,
+    		@RequestParam(name = "RID", required = false) String rid
+    		) {
+    	
+    	try{    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
+    		//String uin = "";
+    		//String rid = "1234567890";
+    		return packetSyncService.updateResidentData(personaRequestDto.getRequests(), uin,rid);
+    	
+    	} catch (Exception ex){
+             logger.error("registerResident", ex);
+    	}
+    	return "{Failed}";
+    	
+    }
     @PostMapping(value = "/preregister/")
     public @ResponseBody String preRegisterResident(@RequestBody PreRegisterRequestDto preRegisterRequestDto) {
 
     	try{    	
-    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
     		return packetSyncService.preRegisterResident(preRegisterRequestDto.getPersonaFilePath());
     	
     	} catch (Exception ex){
@@ -156,7 +189,9 @@ public class TestDataController {
     public @ResponseBody String requestOtp(@RequestBody PreRegisterRequestDto preRegisterRequestDto, @PathVariable("to") String to) {
 
     	try{    	
-    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
     		return packetSyncService.requestOtp(preRegisterRequestDto.getPersonaFilePath(), to);
     	
     	} catch (Exception ex){
@@ -169,7 +204,9 @@ public class TestDataController {
     public @ResponseBody String verifyOtp(@RequestBody PreRegisterRequestDto preRegisterRequestDto,@PathVariable("to") String to) {
 
     	try{    	
-    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
     		return packetSyncService.verifyOtp(preRegisterRequestDto.getPersonaFilePath().get(0), to, null);
     	
     	} catch (Exception ex){
@@ -184,7 +221,9 @@ public class TestDataController {
     public @ResponseBody String bookAppointment(@PathVariable("preregid") String preregId,@PathVariable("nthSlot") int  nthSlot) {
 
     	try{    	
-    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
     		return packetSyncService.bookAppointment(preregId,nthSlot);
     	
     	} catch (Exception ex){
@@ -197,7 +236,9 @@ public class TestDataController {
     public @ResponseBody String uploadDocuments(@RequestBody PreRegisterRequestDto preRegisterRequestDto,@PathVariable("preregid") String preregId) {
 
     	try{    	
-    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
     		return packetSyncService.uploadDocuments(preRegisterRequestDto.getPersonaFilePath().get(0),preregId);
     	
     	} catch (Exception ex){
@@ -206,6 +247,40 @@ public class TestDataController {
     	return "{\"Failed\"}";
     }
     
+    @PostMapping(value = "/packet/{process}/{outFolderPath}")
+    public @ResponseBody String createPackets(@RequestBody PreRegisterRequestDto preRegisterRequestDto,
+    		@PathVariable("process") String process,
+    		@PathVariable("outFolderPath") String outFolderPath) {
+
+    	try{    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
+    		return packetSyncService.createPackets(preRegisterRequestDto.getPersonaFilePath(),process,outFolderPath);
+    	
+    	} catch (Exception ex){
+             logger.error("createPackets", ex);
+    	}
+    	return "{\"Failed\"}";
+    }
     	  
+    /*
+     * Download from pre-reg, merge with the given packet template and upload to register
+     */
+    @PostMapping(value = "/packet/sync/{preregId}")
+    public @ResponseBody String preRegToRegister(@RequestBody PreRegisterRequestDto preRegisterRequestDto,
+    		@PathVariable("preregId") String preregId) {
+
+    	try{    	
+    		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
+    			DataProviderConstants.RESOURCE = personaConfigPath;
+    		}
+    		return packetSyncService.preRegToRegister(preRegisterRequestDto.getPersonaFilePath().get(0),preregId);
+    	
+    	} catch (Exception ex){
+             logger.error("createPacket", ex);
+    	}
+    	return "{\"Failed\"}";
+    }
     
 }

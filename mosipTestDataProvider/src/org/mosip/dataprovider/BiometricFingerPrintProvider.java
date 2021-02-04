@@ -37,6 +37,8 @@ import org.mosip.dataprovider.util.FPClassDistribution;
 import com.jamesmurty.utils.XMLBuilder;
 //import java.util.Date;
 
+import variables.VariableManager;
+
 
 /*
 import io.mosip.kernel.cbeffutil.container.impl.CbeffContainerImpl;
@@ -160,12 +162,12 @@ public class BiometricFingerPrintProvider {
 		
 		// Step 3: Add IRIS
 		IrisDataModel irisInfo =  biometricDataModel.getIris();
-		
-		String irisXml = buildBirIris( irisInfo.getLeft(), "Left");
-		builder = builder.importXMLBuilder( XMLBuilder.parse( irisXml));
-		irisXml = buildBirIris( irisInfo.getRight(), "Right");
-		builder = builder.importXMLBuilder( XMLBuilder.parse( irisXml));
-		
+		if(irisInfo != null) {
+			String irisXml = buildBirIris( irisInfo.getLeft(), "Left");
+			builder = builder.importXMLBuilder( XMLBuilder.parse( irisXml));
+			irisXml = buildBirIris( irisInfo.getRight(), "Right");
+			builder = builder.importXMLBuilder( XMLBuilder.parse( irisXml));
+		}
 		
 		if(toFile != null) {
 			PrintWriter writer = new PrintWriter(new FileOutputStream(toFile));
@@ -238,32 +240,69 @@ public class BiometricFingerPrintProvider {
 		File tmpDir;
 	
 		if(bFinger) {
-			try {
-				tmpDir = Files.createTempDirectory("fps").toFile();
-				Hashtable<Integer, List<File>> prints = generateFingerprint(tmpDir.getAbsolutePath(), 10, 2, 4, FPClassDistribution.arch );
-				List<File> firstSet = prints.get(1);
+			Boolean bAnguli = Boolean.parseBoolean( VariableManager.getVariableValue("enableAnguli").toString());
+			if(bAnguli) {
+			
+				try {
+					tmpDir = Files.createTempDirectory("fps").toFile();
+					Hashtable<Integer, List<File>> prints = generateFingerprint(tmpDir.getAbsolutePath(), 10, 2, 4, FPClassDistribution.arch );
+					List<File> firstSet = prints.get(1);
+			
+					String [] fingerPrints = new String[10];
+					int index = 0;
+					for(File f: firstSet) {
+						
+						if(index >9) break;
+						 Path path = Paths.get(f.getAbsolutePath());
+						 byte[] fdata = Files.readAllBytes(path);
+						 fingerPrints[index]= Base64.getEncoder().encodeToString(fdata);
+						 
+						 //fingerPrints[index]= Hex.encodeHexString( fdata ) ;
+						// fingerPrints[index]=   fingerPrints[index].toUpperCase();
+						 
+						 //delete file
+						 index++;
+						 
+					}
+					data.setFingerPrint(fingerPrints);
+					tmpDir.deleteOnExit();
+					
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			else
+			{
+				//reach cached finger prints from folder 
+				String dirPath = DataProviderConstants.RESOURCE +"/fingerprints/";
+				Hashtable<Integer, List<File>> tblFiles = new Hashtable<Integer, List<File>>();
+				for(int i=1; i <= 2; i++) {
+					
+					List<File> lst = CommonUtil.listFiles(dirPath +
+							String.format("/Impression_%d/fp_1/", i));
+					tblFiles.put(i,lst);
+				}
 				String [] fingerPrints = new String[10];
+				List<File> firstSet = tblFiles.get(1);
+				
 				int index = 0;
 				for(File f: firstSet) {
 					
 					if(index >9) break;
 					 Path path = Paths.get(f.getAbsolutePath());
-					 byte[] fdata = Files.readAllBytes(path);
-					 fingerPrints[index]= Base64.getEncoder().encodeToString(fdata);
-					 
-					 //fingerPrints[index]= Hex.encodeHexString( fdata ) ;
-					// fingerPrints[index]=   fingerPrints[index].toUpperCase();
-					 
-					 //delete file
-					 index++;
+					 byte[] fdata;
+					try {
+						fdata = Files.readAllBytes(path);
+						 fingerPrints[index]= Base64.getEncoder().encodeToString(fdata);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					index++;
 					 
 				}
 				data.setFingerPrint(fingerPrints);
-				tmpDir.deleteOnExit();
-				
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
 			}
 		}
 		return data;

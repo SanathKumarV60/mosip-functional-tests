@@ -8,12 +8,13 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 
-import org.apache.commons.lang3.tuple.Pair;
+
 import org.mosip.dataprovider.models.BiometricDataModel;
 import org.mosip.dataprovider.models.Contact;
 import org.mosip.dataprovider.models.DynamicFieldModel;
 import org.mosip.dataprovider.models.DynamicFieldValueModel;
 import org.mosip.dataprovider.models.IrisDataModel;
+import org.mosip.dataprovider.models.MosipGenderModel;
 import org.mosip.dataprovider.models.MosipIndividualTypeModel;
 import org.mosip.dataprovider.models.MosipLocationModel;
 import org.mosip.dataprovider.models.Name;
@@ -23,6 +24,7 @@ import org.mosip.dataprovider.util.CommonUtil;
 import org.mosip.dataprovider.util.DataProviderConstants;
 import org.mosip.dataprovider.util.Gender;
 import org.mosip.dataprovider.util.ResidentAttribute;
+import org.mosip.dataprovider.util.RestClient;
 import org.mosip.dataprovider.util.Translator;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -49,7 +51,7 @@ public class ResidentDataProvider {
 		attributeList.put(ResidentAttribute.RA_Count, 1);
 		attributeList.put(ResidentAttribute.RA_PRIMARAY_LANG, DataProviderConstants.LANG_CODE_ENGLISH);
 		attributeList.put(ResidentAttribute.RA_Country, "MA");
-		
+		RestClient.clearToken();
 	}
 	//Attribute Value ->'Any','No' or specific value
 	public ResidentDataProvider addCondition(ResidentAttribute attributeName, Object attributeValue) {
@@ -78,6 +80,12 @@ public class ResidentDataProvider {
 		Gender gender =  (Gender) attributeList.get(ResidentAttribute.RA_Gender);
 		String primary_lang = (String) attributeList.get(ResidentAttribute.RA_PRIMARAY_LANG);
 		String sec_lang = (String) attributeList.get(ResidentAttribute.RA_SECONDARY_LANG);
+		Object oAttr = attributeList.get(ResidentAttribute.RA_Iris);
+		Boolean bIrisRequired = false;
+		
+		if(oAttr != null) {
+			bIrisRequired = (Boolean)oAttr;
+		}
 		if(gender == null)
 			gender  = Gender.Any;
 		List<Name> names_sec = null;
@@ -85,6 +93,8 @@ public class ResidentDataProvider {
 		
 		List<DynamicFieldModel> dynaFields = MosipMasterData.getAllDynamicFields();
 		 
+		List<MosipGenderModel> genderTypes = MosipMasterData.getGenderTypes();
+		
 		//generate mix of both genders
 		int maleCount =0,femaleCount = 0;
 		
@@ -135,13 +145,14 @@ public class ResidentDataProvider {
 		
 		List<DynamicFieldValueModel> bloodGroups = BloodGroupProvider.generate(count, dynaFields);
 
-		List<MosipIndividualTypeModel> resStatusList =  MosipMasterData.getIndividualTypes();
+		Hashtable<String, List<MosipIndividualTypeModel>> resStatusList =  MosipMasterData.getIndividualTypes();
 		
 		int [] idxes = CommonUtil.generateRandomNumbers(count,DataProviderConstants.MAX_PHOTOS,0);
 
 		List<IrisDataModel> irisList = null;
 		try {
-			irisList = BiometricFingerPrintProvider.generateIris(count);
+			if(bIrisRequired)
+				irisList = BiometricFingerPrintProvider.generateIris(count);
 		} catch (IOException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
@@ -155,6 +166,8 @@ public class ResidentDataProvider {
 			res.setSecondaryLanguage(sec_lang);
 			res.setDynaFields(dynaFields);
 			res.setName(names_primary.get(i));
+			
+			res.setGenderTypes(genderTypes);
 			
 			if(primary_lang.startsWith( DataProviderConstants.LANG_CODE_ENGLISH))
 				res.setGender(names_primary.get(i).getGender().name());
@@ -176,6 +189,7 @@ public class ResidentDataProvider {
 			ResidentAttribute age =  (ResidentAttribute) attributeList.get(ResidentAttribute.RA_Age);
 			Boolean skipGaurdian = false;
 			if(age == ResidentAttribute.RA_Minor) {
+				res.setMinor(true);
 				if(attributeList.containsKey(ResidentAttribute.RA_SKipGaurdian))
 					skipGaurdian =   Boolean.valueOf(attributeList.get(ResidentAttribute.RA_SKipGaurdian).toString());
 				if(!skipGaurdian)
@@ -185,13 +199,39 @@ public class ResidentDataProvider {
 			if(res.getSecondaryLanguage() != null)
 					res.setLocation_seclang(locations.get(res.getPrimaryLanguage()));
 			
-			int indx = rand.nextInt(resStatusList.size());
-			res.setResidentStatus(resStatusList.get(indx));
-
+			List<MosipIndividualTypeModel> lstResStatusPrimLang = resStatusList.get( res.getPrimaryLanguage());
+			int indx =0;
+			if(lstResStatusPrimLang != null) {
+				for(MosipIndividualTypeModel itm: lstResStatusPrimLang) {
+					if(itm.getCode().equals("NFR")) {
+						res.setResidentStatus(itm);
+						break;
+					}
+				}
+				if(res.getResidentStatus() == null) {
+					indx = rand.nextInt(lstResStatusPrimLang.size());
+					res.setResidentStatus(lstResStatusPrimLang.get(indx));
+				}
+			}
+			if(res.getSecondaryLanguage() != null) {
+				List<MosipIndividualTypeModel> lstResStatusSecLang = resStatusList.get( res.getSecondaryLanguage());
+				if(lstResStatusSecLang != null) {
+					for(MosipIndividualTypeModel itm: lstResStatusSecLang) {
+						if(itm.getCode().equals(lstResStatusPrimLang.get(indx).getCode())){
+							res.setResidentStatus_seclang(itm);
+							break;
+						}
+					}
+				}	
+				if(res.getResidentStatus_seclang() == null) {
+					res.setResidentStatus_seclang(res.getResidentStatus());
+				}
+			}
 			Object bFinger = attributeList.get(ResidentAttribute.RA_Finger);
 			
 			BiometricDataModel bioData = BiometricFingerPrintProvider.getBiometricData(bFinger == null ? true: (Boolean)bFinger);
-			bioData.setIris(irisList.get(i));
+			if(bIrisRequired)
+				bioData.setIris(irisList.get(i));
 			String encodedPhoto = PhotoProvider.getPhoto(idxes[i], res_gender.name() );
 			bioData.setEncodedPhoto(encodedPhoto);
 //			res.setEncodedPhoto( );

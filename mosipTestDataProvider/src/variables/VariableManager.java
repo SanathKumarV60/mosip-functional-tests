@@ -71,7 +71,7 @@ public class VariableManager {
 		 cacheConfig =
 		    new MutableConfiguration<>()
 		    .setTypes( Object.class, Object.class)
-		    .setExpiryPolicyFactory(AccessedExpiryPolicy.factoryOf(Duration.ONE_HOUR))
+		    .setExpiryPolicyFactory(AccessedExpiryPolicy.factoryOf(Duration.ONE_DAY))
 		    .setStatisticsEnabled(true);
 
 		 //create the cache
@@ -106,7 +106,7 @@ public class VariableManager {
 		Matcher matcher = pattern.matcher(text);
 		while (matcher.find()) {
 			String extract = text.substring(matcher.start(), matcher.end());
-			//Hack - Strip leading and training {{ }}
+			//Hack - Strip leading and trailing {{ }}
 			if(extract != null && extract.startsWith("{{"))
 				extract = extract.substring(2);
 			if(extract != null && extract.endsWith("}}"))

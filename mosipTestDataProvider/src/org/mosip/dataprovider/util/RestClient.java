@@ -22,7 +22,7 @@ import variables.VariableManager;
 
 import static io.restassured.RestAssured.given;
 
-import io.cucumber.messages.internal.com.google.gson.Gson;
+
 import io.restassured.RestAssured;
 import io.restassured.filter.log.RequestLoggingFilter;
 import io.restassured.filter.log.ResponseLoggingFilter;
@@ -44,7 +44,18 @@ public class RestClient {
 	int http_status;
 	Properties headers;
 	
-	public void clearToken() {
+	public static Boolean isValidToken() {
+		
+		Object obj = VariableManager.getVariableValue("urlSwitched");
+    	if(obj != null) {
+    		Boolean bClear = (Boolean) obj;
+    		if(bClear)
+    			return false;
+    	}
+    	return  !(null == token);
+    	
+	}
+	public static void clearToken() {
 		token = null;
 		refreshToken = null;
 	}
@@ -80,7 +91,7 @@ public class RestClient {
 	}
 	public static JSONObject get(String url, JSONObject requestParams, JSONObject pathParam) throws Exception {
        
-        if (null == token){
+        if (!isValidToken()){
             initToken();
         }
         Cookie kukki = new Cookie.Builder("Authorization", token).build();
@@ -102,7 +113,7 @@ public class RestClient {
     }
 	
 	public static JSONObject uploadFile(String url, String filePath, JSONObject requestData) throws Exception {
-        if (token == null){
+		 if (!isValidToken()){
             initToken();
         }
         Cookie kukki = new Cookie.Builder("Authorization", token).build();
@@ -143,7 +154,7 @@ public class RestClient {
     }
 */
 	public static JSONObject post(String url, JSONObject jsonRequest) throws Exception {
-        if (null == token){
+		if (!isValidToken()){
             initToken();
         }
         Cookie kukki = new Cookie.Builder("Authorization", token).build();
@@ -164,11 +175,11 @@ public class RestClient {
 	        try {		
 				JSONObject requestBody = new JSONObject();
 				JSONObject nestedRequest = new JSONObject();
-				nestedRequest.put("userName", VariableManager.getVariableValue("prereg" ,"operatorId"));
-				nestedRequest.put("password",  VariableManager.getVariableValue("prereg" ,"password"));
-	            nestedRequest.put("appId", VariableManager.getVariableValue("prereg" , "appId"));
-	            nestedRequest.put("clientId",  VariableManager.getVariableValue("prereg" ,"clientId"));
-	            nestedRequest.put("clientSecret",  VariableManager.getVariableValue("prereg" ,"secretKey"));
+				nestedRequest.put("userName", VariableManager.getVariableValue(VariableManager.NS_PREREG ,"operatorId"));
+				nestedRequest.put("password",  VariableManager.getVariableValue(VariableManager.NS_PREREG ,"password"));
+	            nestedRequest.put("appId", VariableManager.getVariableValue(VariableManager.NS_PREREG , "appId"));
+	            nestedRequest.put("clientId",  VariableManager.getVariableValue(VariableManager.NS_PREREG ,"clientId"));
+	            nestedRequest.put("clientSecret",  VariableManager.getVariableValue(VariableManager.NS_PREREG ,"secretKey"));
 				requestBody.put("metadata",new JSONObject());
 				requestBody.put("version", "1.0");
 				requestBody.put("id", "mosip.authentication.useridPwd");

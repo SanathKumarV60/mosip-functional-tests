@@ -1,9 +1,13 @@
 package org.mosip.dataprovider.models;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Files;
 
+import java.nio.file.Paths;
 import java.util.List;
 
+import org.mosip.dataprovider.preparation.MosipMasterData;
 //import org.apache.commons.lang3.tuple.Pair;
 import org.mosip.dataprovider.util.CommonUtil;
 
@@ -46,6 +50,8 @@ public class ResidentModel  implements Serializable {
 	private String UIN;
 	private String RID;
 	
+	private List<MosipGenderModel> genderTypes ;
+	
 	public ResidentModel() {
 	
 		id = String.format("%04d", CommonUtil.generateRandomNumbers(1,99999, 1000)[0]);
@@ -56,7 +62,8 @@ public class ResidentModel  implements Serializable {
 	public String toJSONString() {
 		
 		ObjectMapper mapper = new ObjectMapper();
-		//mapper.registerModule(new SimpleModule().addSerializer(Pair.class, new PairSerializer()));
+	//	mapper.getFactory().configure(JsonWriteFeature.ESCAPE_NON_ASCII.mappedFeature(), true);
+		
 		String jsonStr ="";
 		try {
 				jsonStr = mapper.writeValueAsString(this);
@@ -66,4 +73,32 @@ public class ResidentModel  implements Serializable {
 		}	
 		return jsonStr;
 	}
+	public static void main(String [] args) {
+		
+		ResidentModel model  = new ResidentModel();
+		Name name = new Name();
+		name.setFirstName("abcd ’'` efg");
+		model.setName(name);
+		System.out.println(model.toJSONString());
+
+		try {
+			Files.write(Paths.get("test.json"), model.toJSONString().getBytes());
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		
+    	ObjectMapper mapper = new ObjectMapper();
+
+		try {
+			byte[] bytes = Files.readAllBytes(Paths.get("test.json"));
+			ResidentModel m = mapper.readValue(model.toJSONString().getBytes(), ResidentModel.class);
+			System.out.println(m.getName().getFirstName());
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}			
+    
 }

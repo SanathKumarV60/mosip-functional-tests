@@ -16,6 +16,7 @@ import org.mosip.dataprovider.models.MosipBiometricAttributeModel;
 import org.mosip.dataprovider.models.MosipBiometricTypeModel;
 import org.mosip.dataprovider.models.MosipDocCategoryModel;
 import org.mosip.dataprovider.models.MosipDocTypeModel;
+import org.mosip.dataprovider.models.MosipGenderModel;
 import org.mosip.dataprovider.models.MosipIDSchema;
 import org.mosip.dataprovider.models.MosipIndividualTypeModel;
 import org.mosip.dataprovider.models.MosipLanguage;
@@ -193,6 +194,7 @@ public  class MosipMasterData {
 				if(locHierarchy != null) {
 					locationHierarchy = new LocationHierarchyModel[ locHierarchy.size()];
 					for (LocationHierarchyModel object : locHierarchy) {
+						if(object.getIsActive())
 						locationHierarchy[object.getHierarchyLevel()] = object;
 					}
 				}
@@ -206,6 +208,42 @@ public  class MosipMasterData {
 		}
 		return locationHierarchy;
 		
+	}
+	public static List<MosipLocationModel> getImmedeateChildren(String locCode, String langCode){
+
+		List<MosipLocationModel> locList = null;
+		
+		String url = VariableManager.getVariableValue("urlBase").toString() +
+		"/v1/masterdata/locations/immediatechildren/";
+		url = url+ locCode + "/" + langCode ;
+
+		Object o =getCache(url);
+		if(o != null)
+			return( (List<MosipLocationModel>) o);
+	
+		try {
+			JSONObject resp = RestClient.get(url,new JSONObject() , new JSONObject());
+			JSONArray locArray = resp.getJSONArray("locations");
+			
+			if(locArray != null) {
+				ObjectMapper objectMapper = new ObjectMapper();
+				locList = objectMapper.readValue(locArray.toString(), 
+					objectMapper.getTypeFactory().constructCollectionType(List.class, MosipLocationModel.class));
+	
+				List<MosipLocationModel> newLocList = new ArrayList<MosipLocationModel>(); 
+				for(MosipLocationModel lm: locList) {
+					if(lm.getIsActive())
+						newLocList.add(lm);
+				}
+				locList = newLocList;
+				setCache(url, locList);
+			}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return locList;
+	
 	}
 	
 	public  static List<MosipLocationModel> getLocationsByLevel(String level) {
@@ -228,6 +266,12 @@ public  class MosipMasterData {
 				locList = objectMapper.readValue(locArray.toString(), 
 					objectMapper.getTypeFactory().constructCollectionType(List.class, MosipLocationModel.class));
 	
+				List<MosipLocationModel> newLocList = new ArrayList<MosipLocationModel>(); 
+				for(MosipLocationModel lm: locList) {
+					if(lm.getIsActive())
+						newLocList.add(lm);
+				}
+				locList = newLocList;
 				setCache(url, locList);
 			}
 		} catch (Exception e) {
@@ -366,7 +410,10 @@ public  class MosipMasterData {
 		return docTypeList;
 	}
 	
-	public static List<MosipIndividualTypeModel> getIndividualTypes() {
+	public static Hashtable<String, List<MosipIndividualTypeModel>> getIndividualTypes() {
+		
+		Hashtable<String, List<MosipIndividualTypeModel>> tbl = new Hashtable<String, List<MosipIndividualTypeModel>>();
+		
 		List<MosipIndividualTypeModel> indTypeList = null;
 		
 		String url = VariableManager.getVariableValue("urlBase").toString() +
@@ -374,7 +421,7 @@ public  class MosipMasterData {
 		
 		Object o =getCache(url);
 		if(o != null)
-			return( (List<MosipIndividualTypeModel>) o);
+			return( (Hashtable<String, List<MosipIndividualTypeModel>>) o);
 
 		try {
 			JSONObject resp = RestClient.get(url,new JSONObject() , new JSONObject());
@@ -385,24 +432,68 @@ public  class MosipMasterData {
 				indTypeList = objectMapper.readValue(docCatArray.toString(), 
 					objectMapper.getTypeFactory().constructCollectionType(List.class, MosipIndividualTypeModel.class));
 	
-				List<MosipIndividualTypeModel> newDocTypeList = new ArrayList<MosipIndividualTypeModel>();
+				List<MosipIndividualTypeModel> newList = null;
 				for(MosipIndividualTypeModel m: indTypeList) {
-					if(m.getIsActive() )
-						newDocTypeList.add(m);
+					
+					if(m.getIsActive() ) {
+						newList = tbl.get( m.getLangCode());
+						if(newList == null) {
+							newList = new ArrayList<MosipIndividualTypeModel>();
+							tbl.put(m.getLangCode(), newList);
+						}
+						newList.add(m);
+					}
 				}
-				setCache(url, newDocTypeList);
-				return newDocTypeList;
+				setCache(url, tbl);
+				//return tbl;
 						
 			}
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		return indTypeList;
+		return tbl;
+
+	}
+	public static List<MosipGenderModel> getGenderTypes() {
+		List<MosipGenderModel> genderTypeList = null;
+
+		String url = VariableManager.getVariableValue("urlBase").toString() +
+		VariableManager.getVariableValue(VariableManager.NS_MASTERDATA,"gendertypes").toString();
+				
+				Object o =getCache(url);
+				if(o != null)
+					return( (List<MosipGenderModel>) o);
+
+				try {
+					JSONObject resp = RestClient.get(url,new JSONObject() , new JSONObject());
+					JSONArray docCatArray = resp.getJSONArray("genderType");
+					
+					if(docCatArray != null) {
+						ObjectMapper objectMapper = new ObjectMapper();
+						genderTypeList = objectMapper.readValue(docCatArray.toString(), 
+							objectMapper.getTypeFactory().constructCollectionType(List.class, MosipGenderModel.class));
+			
+						setCache(url, genderTypeList);
+						return genderTypeList;
+								
+					}
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				return genderTypeList;
 
 	}
 	public static void main(String[] args) {
 	
+
+		
+			
+		HashMap<String,LocationHierarchyModel[]> locHi = getAllLocationHierarchies();
+		
+		List<MosipGenderModel> genderTypes = MosipMasterData.getGenderTypes();
+		
 		List<MosipBiometricTypeModel> bioTypes = getBiometricTypes();
 		for(MosipBiometricTypeModel bt: bioTypes) {
 			
@@ -414,7 +505,7 @@ public  class MosipMasterData {
 			
 		}
 		if(0 ==1) {
-			List<MosipIndividualTypeModel> indTypes =  getIndividualTypes();
+			Hashtable<String, List<MosipIndividualTypeModel>>indTypes =  getIndividualTypes();
 			List<MosipDocCategoryModel> docCat =getDocumentCategories();
 			
 			 List<MosipDocTypeModel> dcoTypes= getDocumentTypes(docCat.get(0).getCode(),docCat.get(0).getLangCode());
@@ -450,7 +541,7 @@ public  class MosipMasterData {
 			});
 			
 			
-			HashMap<String,LocationHierarchyModel[]> locHi = getAllLocationHierarchies();
+			//HashMap<String,LocationHierarchyModel[]> locHi = getAllLocationHierarchies();
 			Set<String> langSet = locHi.keySet();
 			langSet.forEach( (langcode) ->{
 				LocationHierarchyModel[] locHierachies = locHi.get(langcode);

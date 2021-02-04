@@ -7,6 +7,7 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.mosip.dataprovider.models.MosipGenderModel;
 import org.mosip.dataprovider.models.MosipIDSchema;
 import org.mosip.dataprovider.models.MosipLocationModel;
 import org.mosip.dataprovider.models.ResidentModel;
@@ -37,6 +38,8 @@ public class CreatePersona {
 		List<MosipLocationModel> locations =   resident.getLocation();
 		List<MosipLocationModel> locations_seclang =   resident.getLocation_seclang();
 
+		List<MosipGenderModel> genderTypes = resident.getGenderTypes();
+		
 		for(MosipIDSchema schema:schemas ) {
 			
 			if(schema.getRequired()) {
@@ -44,95 +47,161 @@ public class CreatePersona {
 				if(schema.getId().equalsIgnoreCase("idschemaVersion")) {
 					identity.put(schema.getId(),schemaversion );	
 				}
+				else
 				if(schema.getId().toLowerCase().equals("fullname")) {
 					String name = resident.getName().getFirstName() +" " + resident.getName().getMidName()+ " "+ resident.getName().getSurName();
 					
 					obj.put("language", resident.getPrimaryLanguage());
 					obj.put("value", name);
-					array.put(0, obj);
-					if(resident.getSecondaryLanguage() != null) {	
-						name = resident.getName_seclang().getFirstName() +" "+ resident.getName_seclang().getMidName() + " "+ resident.getName_seclang().getSurName();
-						obj = new JSONObject();
-						obj.put("language", resident.getSecondaryLanguage());
-						obj.put("value", name);
-						array.put(1, obj);
+					
+					if(schema.getType().equals("simpleType")){
+						array.put(0, obj);
+						
+						if(resident.getSecondaryLanguage() != null) {	
+							name = resident.getName_seclang().getFirstName() +" "+ resident.getName_seclang().getMidName() + " "+ resident.getName_seclang().getSurName();
+							obj = new JSONObject();
+							obj.put("language", resident.getSecondaryLanguage());
+							obj.put("value", name);
+							array.put(1, obj);
+						}
+						identity.put(schema.getId(), array);
 					}
-					identity.put(schema.getId(), array);
+					else
+						identity.put(schema.getId(), obj.get("value"));
 
 				}
+				else
 				if(schema.getId().toLowerCase().equals("firstname")) {
 					String name = resident.getName().getFirstName() ;
 					
 					obj.put("language", resident.getPrimaryLanguage());
 					obj.put("value", name);
-					array.put(0, obj);
-					if(resident.getSecondaryLanguage() != null) {	
-						name = resident.getName_seclang().getFirstName();
-						obj = new JSONObject();
-						obj.put("language", resident.getSecondaryLanguage());
-						obj.put("value", name);
-						array.put(1, obj);
+					if(schema.getType().equals("simpleType")){
+						
+						array.put(0, obj);
+						if(resident.getSecondaryLanguage() != null) {	
+							name = resident.getName_seclang().getFirstName();
+							obj = new JSONObject();
+							obj.put("language", resident.getSecondaryLanguage());
+							obj.put("value", name);
+							array.put(1, obj);
+						}
+						identity.put(schema.getId(), array);
 					}
-					identity.put(schema.getId(), array);
-
+					else
+						identity.put(schema.getId(), obj.get("value"));
 				}
+				else
 				if(schema.getId().toLowerCase().equals("lastname")) {
 					String name = resident.getName().getSurName() ;
 					
 					obj.put("language", resident.getPrimaryLanguage());
 					obj.put("value", name);
-					array.put(0, obj);
-					if(resident.getSecondaryLanguage() != null) {	
-						name = resident.getName_seclang().getSurName();
-						obj = new JSONObject();
-						obj.put("language", resident.getSecondaryLanguage());
-						obj.put("value", name);
-						array.put(1, obj);
+					if(schema.getType().equals("simpleType")){
+						
+						array.put(0, obj);
+						if(resident.getSecondaryLanguage() != null) {	
+							name = resident.getName_seclang().getSurName();
+							obj = new JSONObject();
+							obj.put("language", resident.getSecondaryLanguage());
+							obj.put("value", name);
+							array.put(1, obj);
+						}
+						identity.put(schema.getId(), array);
 					}
-					identity.put(schema.getId(), array);
-
+					else
+						identity.put(schema.getId(), array.getJSONObject(0).get("value"));
 				}
-				
+				else
 				if(schema.getId().toLowerCase().equals("middlename")) {
 					String name = resident.getName().getMidName() ;
 					
 					obj.put("language", resident.getPrimaryLanguage());
 					obj.put("value", name);
-					array.put(0, obj);
-					if(resident.getSecondaryLanguage() != null) {	
-						name = resident.getName_seclang().getMidName();
-						obj = new JSONObject();
-						obj.put("language", resident.getSecondaryLanguage());
-						obj.put("value", name);
-						array.put(1, obj);
+					if(schema.getType().equals("simpleType")){
+						
+						array.put(0, obj);
+						if(resident.getSecondaryLanguage() != null) {	
+							name = resident.getName_seclang().getMidName();
+							obj = new JSONObject();
+							obj.put("language", resident.getSecondaryLanguage());
+							obj.put("value", name);
+							array.put(1, obj);
+						}
+						identity.put(schema.getId(), array);
 					}
-					identity.put(schema.getId(), array);
-
+					else
+						identity.put(schema.getId(), array.getJSONObject(0).get("value"));
 				}
-				if(schema.getId().toLowerCase().equals("dateofbirth") ||schema.getId().toLowerCase().equals("dob") || schema.getId().toLowerCase().equals("birthdate") ) {
+				else
+				if(schema.getId().toLowerCase().equals("gender") ||schema.getId().toLowerCase().equals("sex") ) {
+						
+					String primLang = resident.getPrimaryLanguage();
+					String secLan = resident.getSecondaryLanguage();
+					String resGen = resident.getGender();
+						
+					array = new JSONArray();
+					obj = new JSONObject();
+					int idx =0;
+					for(MosipGenderModel g: genderTypes) {
+						if(!g.getIsActive())
+							continue;
+						if(g.getGenderName().equals(resGen)) {
+
+							if(g.getLangCode().equals(primLang) ) {
+								obj.put("language", primLang);
+								obj.put("value", g.getCode());
+								array.put(idx, obj);
+								idx++;
+							}
+							if(secLan != null && g.getLangCode().equals(secLan) ) {
+									
+								obj.put("language", secLan);
+								obj.put("value", g.getCode());
+								array.put(idx, obj);
+							}
+						}
+					}
+					if(schema.getType().equals("simpleType")){		
+						identity.put(schema.getId(), array);
+					}
+					else
+						identity.put(schema.getId(), array.getJSONObject(0).get("value"));
+				}
+				else
+					if(schema.getId().toLowerCase().equals("dateofbirth") ||schema.getId().toLowerCase().equals("dob") || schema.getId().toLowerCase().equals("birthdate") ) {
 					
 					//should be informat yyyy/mm/dd
 					//SimpleDateFormat formatter = new SimpleDateFormat("yyyy/MM/dd");  
 					String strDate= resident.getDob();
-					String gender ="FML";
-					identity.put(schema.getId(), strDate);
-					if(resident.getGender().equals("Male"))
-						gender = "MLE";
-					
+
+					//identity.put(schema.getId(), strDate);
+					String primLang = resident.getPrimaryLanguage();
+					String secLan = resident.getSecondaryLanguage();
+
+	
 					array = new JSONArray();
 					obj = new JSONObject();
-					obj.put("language", resident.getPrimaryLanguage());
-					obj.put("value", gender);
-					array.put(0, obj);
-					if(resident.getSecondaryLanguage() != null) {	
-					
-						obj = new JSONObject();
-						obj.put("language", resident.getSecondaryLanguage());
-						obj.put("value", gender);
-						array.put(1, obj);
+					int idx =0;
+					if(schema.getType().equals("simpleType")){
+						
+						obj.put("language", primLang);
+						obj.put("value", strDate);
+						array.put(idx, obj);
+						idx++;
+						if(secLan != null) {
+							obj.put("language", secLan);
+							obj.put("value", strDate);
+							array.put(idx, obj);
+						
+						}
+						identity.put(schema.getId(), array);
+
 					}
-					identity.put("gender", array);
+					else	
+						identity.put(schema.getId(),strDate);
 				}
+				else
 				if(schema.getId().toLowerCase().contains("address")) {
 						
 					String addr = "#111, 127th Main, " + schema.getId();
@@ -149,8 +218,14 @@ public class CreatePersona {
 						obj.put("value", Translator.translate(resident.getSecondaryLanguage(),addr));
 						array.put(1, obj);
 					}
-					identity.put(schema.getId(), array);
+					if(schema.getType().equals("simpleType")){
+						
+						identity.put(schema.getId(), array);
+					}
+					else
+						identity.put(schema.getId(), array.getJSONObject(0).get("value"));
 				}
+				else
 				if(schema.getId().toLowerCase().contains("residen") /*|| schema.getId().toLowerCase().contains("individual")*/ ) {
 					String name = resident.getResidentStatus().getCode() ;
 					
@@ -164,7 +239,12 @@ public class CreatePersona {
 						obj.put("value", name);
 						array.put(1, obj);
 					}
-					identity.put(schema.getId(), array);
+					if(schema.getType().equals("simpleType")){
+						
+						identity.put(schema.getId(), array);
+					}
+					else
+						identity.put(schema.getId(), array.getJSONObject(0).get("value"));
 
 				}
 				
@@ -197,12 +277,17 @@ public class CreatePersona {
 					}
 				}
 				if(bFound) {
-					if(schema.getId().equalsIgnoreCase("postalCode")) {
+					/*if(schema.getId().equalsIgnoreCase("postalCode")) {
 						JSONObject objPostal= array.getJSONObject(0);
 						identity.put(schema.getId(), objPostal.get("value"));
 					}
-					else
+					else */
+					
+					if(schema.getType().equals("simpleType")){
 						identity.put(schema.getId(), array);
+					}
+					else
+						identity.put(schema.getId(), array.getJSONObject(0).get("value"));;
 				}
 			
 				if(schema.getId().toLowerCase().contains("phone") || schema.getId().toLowerCase().contains("mobile") ) {

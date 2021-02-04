@@ -31,14 +31,36 @@ public class LocationProvider {
 			tbl.put(langcode, locations);
 			
 			LocationHierarchyModel[] locHierachies = locHi.get(langcode);
-			for(int i=0; i < locHierachies.length; i++) {
-				List<MosipLocationModel> list = MosipMasterData.getLocationsByLevel(locHierachies[i].getHierarchyLevelName());
-				if(list != null && !list.isEmpty()) {
-					int pos = CommonUtil.generateRandomNumbers(1, list.size()-1, 0)[0];
-					locations.add( list.get(pos) );
-				}
+			List<MosipLocationModel> rootlist = MosipMasterData.getLocationsByLevel(locHierachies[0].getHierarchyLevelName());
 			
-			}	
+			
+			if(rootlist != null && ! rootlist.isEmpty()) {
+				MosipLocationModel rootLoc =null;
+				List<MosipLocationModel> list =null;
+				for( MosipLocationModel rlm: rootlist) {
+					list = MosipMasterData.getImmedeateChildren(rlm.getCode(), langcode );
+					if(list != null && !list.isEmpty()) {
+						rootLoc = rlm;	
+						locations.add( rootLoc);
+						break;
+					}
+
+				}
+				if(rootLoc != null) {
+					
+					for(int i=1; i < locHierachies.length; i++) {
+						//List<MosipLocationModel> list = MosipMasterData.getLocationsByLevel(locHierachies[i].getHierarchyLevelName());
+						list = MosipMasterData.getImmedeateChildren(rootLoc.getCode(), langcode );
+				
+						if(list != null && !list.isEmpty()) {
+							int pos = 0;//CommonUtil.generateRandomNumbers(1, list.size()-1, 0)[0];
+							rootLoc = list.get(pos);
+							locations.add( rootLoc );
+						}
+			
+					}
+				}
+			}
 		});
 		
 		return tbl;

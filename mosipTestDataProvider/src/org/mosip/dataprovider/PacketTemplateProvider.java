@@ -10,6 +10,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Random;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -34,18 +35,24 @@ public class PacketTemplateProvider {
 	public static String RID_EVIDENCE = "rid_evidence";
 	public static String RID_OPTIONAL = "rid_optional";
 
-	static Hashtable<Double,List<MosipIDSchema>> allSchema = MosipMasterData.getIDSchemaLatestVersion();
+	Hashtable<Double,List<MosipIDSchema>> allSchema = MosipMasterData.getIDSchemaLatestVersion();
 	
-	static Double schemaVersion = allSchema.keys().nextElement();
-	static List<MosipIDSchema> schema = allSchema.get(schemaVersion  );
+	Double schemaVersion = allSchema.keys().nextElement();
+	List<MosipIDSchema> schema = allSchema.get(schemaVersion  );
 	
+	public  void getSchema() {
+		allSchema = MosipMasterData.getIDSchemaLatestVersion();
+		schemaVersion = allSchema.keys().nextElement();
+		schema = allSchema.get(schemaVersion  );
+	}
 	//generate un encrypted template
-	public static void generate(String source, String process, ResidentModel resident, String packetFilePath) throws IOException {
+	public  void generate(String source, String process, ResidentModel resident, String packetFilePath) throws IOException {
 		
 		String rootFolder = packetFilePath;
 		String ridFolder ="";
 		Path path = Paths.get(rootFolder);
 
+		getSchema();
 
         if (!Files.exists(path)) {
             Files.createDirectory(path);
@@ -62,7 +69,7 @@ public class PacketTemplateProvider {
         }
         String nextFolder = processFolder + File.separator + RID_FOLDER;
         ridFolder = nextFolder;
-		fileInfo.put(RID_FOLDER, (new String [] {ridFolder,""}));
+		fileInfo.put(RID_FOLDER, (new String [] {ridFolder,"",""}));
 
         path = Paths.get(nextFolder );
         if (!Files.exists(path)) {
@@ -70,7 +77,7 @@ public class PacketTemplateProvider {
         }
         nextFolder = processFolder + File.separator + RID_EVIDENCE;
         String rid_evidence_folder = nextFolder;
-        fileInfo.put(RID_EVIDENCE, (new String [] {rid_evidence_folder,""}));
+        fileInfo.put(RID_EVIDENCE, (new String [] {rid_evidence_folder,"",""}));
 
         path = Paths.get(nextFolder );
         if (!Files.exists(path)) {
@@ -107,8 +114,7 @@ public class PacketTemplateProvider {
        
        
 	}
-	static String generateEvidenceJson(ResidentModel resident, HashMap<String, String[]> fileInfo) {
-	
+	 String generateEvidenceJson(ResidentModel resident, HashMap<String, String[]> fileInfo) {
 		
 		JSONObject identity = new JSONObject();
 		for(MosipIDSchema s: schema) {
@@ -168,6 +174,24 @@ public class PacketTemplateProvider {
 						}
 						continue;
 				}
+				else
+				if(s.getType().toLowerCase().matches("guard.*Name") ) {
+					if(resident.getMinor()) {
+						JSONArray arr = new JSONArray();
+						JSONObject o = new JSONObject();
+						o.put("language", resident.getPrimaryLanguage());
+						o.put("value",  resident.getGuardian().getName().getFirstName());
+						arr.put(o);
+						if(resident.getSecondaryLanguage() != null) {
+							o = new JSONObject();
+							o.put("language", resident.getSecondaryLanguage());
+							o.put("value",  resident.getGuardian().getName_seclang().getFirstName());
+							arr.put(o);		
+						}
+						identity.put(s.getId(),arr);
+					}
+					continue;
+				}
 				if(s.getType().equals("simpleType")) {
 						//array
 						JSONArray ar = new JSONArray();
@@ -201,7 +225,7 @@ public class PacketTemplateProvider {
 	/*
 	 * HashMap<FolderType, [(in)folderPath][(out)biofilename]> fileInfo
 	 */
-	static String generateIDJson(ResidentModel resident, HashMap<String, String[]> fileInfo) {
+	String generateIDJson(ResidentModel resident, HashMap<String, String[]> fileInfo) {
 
 		String idjson="";
 
@@ -319,6 +343,46 @@ public class PacketTemplateProvider {
 						continue;
 					}
 					else
+					if(s.getType().equals("biometricsType") && ( s.getGroup() !=null && s.getGroup().equals("Biometrics")) && s.getId().toLowerCase().contains("guardian") ) {
+					
+						if(resident.getGuardian() != null) {
+							//minor
+						
+						
+							/*parentOrGuardianBiometrics" : {
+	    					"format" : "cbeff",
+	    					"version" : 1.0,
+	    					"value" : "parentOrGuardianBiometrics_bio_CBEFF"
+	  						}
+							 * 
+							 * 
+							 */
+							JSONObject o = new JSONObject();
+							o.put("format", "cbeff");
+							o.put("version", 1.0f);
+							String [] v = fileInfo.get(RID_FOLDER);
+							v[2] =s.getId() +"_bio_CBEFF.xml";
+							fileInfo.put(RID_FOLDER, v);
+							o.put("value",s.getId() +"_bio_CBEFF");
+							//o.put("value","individualBiometrics_bio_CBEFF");
+							identity.put(s.getId(), o);
+							
+							String outFile = fileInfo.get(RID_FOLDER)[0] +"/" + v[2];
+				        	try {
+				        		
+								BiometricFingerPrintProvider.toCBEFF(resident.getGuardian().getBiometric(), outFile);
+
+							
+							} catch (Exception e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							} 
+						
+						}
+						continue;
+					}
+				
+					else
 					if(s.getType().equals("biometricsType") 
 							//&& ( s.getGroup() !=null && s.getGroup().equals("Biometrics")) 
 							//&& s.getId().toLowerCase().contains("parent")
@@ -371,6 +435,15 @@ public class PacketTemplateProvider {
 						}
 					}
 					else
+					if(s.getInputRequired() && s.getId().contains("IdentityNumber") ) {
+
+						int []r = CommonUtil.generateRandomNumbers(2, 99999, 11111);
+						
+						primaryValue = String.format("%d%d", r[0],r[1]);
+						identity.put(s.getId(), primaryValue);
+
+					}
+					else
 					{
 						//System.out.println("SchemaID:"+ s.getId());
 						for(DynamicFieldModel dfm: resident.getDynaFields()) {
@@ -398,7 +471,9 @@ public class PacketTemplateProvider {
 						}
 					}
 					
-					if(s.getType().equals("simpleType") && !s.getId().toLowerCase().contains("postalcode")) {
+					if(s.getType().equals("simpleType") 
+							//&& !s.getId().toLowerCase().equals("postalcode")
+							) {
 						//array
 						JSONArray ar = new JSONArray();
 						JSONObject o = new JSONObject();
@@ -415,6 +490,9 @@ public class PacketTemplateProvider {
 					}
 					else
 					{
+						if(s.getRequired() && (primaryValue == null || primaryValue.equals(""))) {
+							primaryValue =  new Random().nextLong() +"";
+						}
 						if(primaryValue.equals("") && !s.getType().equals("string"))
 							identity.put(s.getId(), JSONObject.NULL);
 						else
@@ -428,7 +506,7 @@ public class PacketTemplateProvider {
 		idjson = retObject.toString();
 		return idjson;
 	}
-	static String generateMetaDataJson(ResidentModel resident, HashMap<String, String[]> fileInfo) {
+	String generateMetaDataJson(ResidentModel resident, HashMap<String, String[]> fileInfo) {
 
 
 		JSONObject identity = new JSONObject();
@@ -521,7 +599,7 @@ public class PacketTemplateProvider {
 		retObject.put("identity", identity);
 		return retObject.toString();
 	}
-	static String genRID_PacketTypeJson(String src, String process, String packetType) {
+	String genRID_PacketTypeJson(String src, String process, String packetType) {
 	
 		 
 		JSONObject retObject = new JSONObject();
@@ -546,7 +624,7 @@ public class PacketTemplateProvider {
 		ResidentDataProvider provider = new ResidentDataProvider();
 		List<ResidentModel> residents = provider.generate();
 		try {
-			generate("registration_client","new", residents.get(0), "/temp//newpacket");
+			new PacketTemplateProvider().generate("registration_client","new", residents.get(0), "/temp//newpacket");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

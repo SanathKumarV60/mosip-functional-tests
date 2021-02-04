@@ -1,7 +1,7 @@
 package org.mosip.dataprovider.test.prereg;
 
 import java.time.LocalDateTime;
-import java.util.List;
+
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -9,7 +9,8 @@ import org.json.JSONObject;
 import org.mosip.dataprovider.models.AppointmentModel;
 import org.mosip.dataprovider.models.AppointmentTimeSlotModel;
 import org.mosip.dataprovider.models.CenterDetailsModel;
-import org.mosip.dataprovider.models.MosipIDSchema;
+
+
 import org.mosip.dataprovider.models.ResidentModel;
 import org.mosip.dataprovider.test.CreatePersona;
 import org.mosip.dataprovider.util.CommonUtil;
@@ -50,8 +51,13 @@ public class PreRegistrationSteps {
 	public static AppointmentModel getAppointments() {
 		AppointmentModel appointmentSlot = new AppointmentModel();
 
-		String url = VariableManager.getVariableValue("urlBase") +
-				VariableManager.getVariableValue(VariableManager.NS_PREREG, "appointmentslots").toString();
+		String base = VariableManager.getVariableValue("urlBase").toString().trim();
+		String api = VariableManager.getVariableValue(VariableManager.NS_PREREG, "appointmentslots").toString().trim();
+		String centerId = VariableManager.getVariableValue(VariableManager.NS_REGCLIENT, "centerId").toString().trim();
+		String url =  base + api + centerId;
+
+
+				
 
 		try {
 			JSONObject resp = RestClient.get(url, new JSONObject(), new JSONObject());
@@ -127,7 +133,7 @@ public class PreRegistrationSteps {
 			
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
+		//	e.printStackTrace();
 		}
 		
 		

@@ -35,6 +35,8 @@ import org.springframework.stereotype.Component;
 import io.restassured.http.ContentType;
 import io.restassured.http.Cookie;
 import io.restassured.response.Response;
+import variables.VariableManager;
+
 import static io.restassured.RestAssured.given;
 
 @Component
@@ -83,8 +85,16 @@ public class APIRequestUtil {
     final String dataKey = "response";
     final String errorKey = "errors";
     
-    public JSONObject get(String url, JSONObject requestParams, JSONObject pathParam) throws Exception {
-        if (!isValidToken()){
+    @Value("${mosip.test.baseurl}")
+    private String baseUrl;
+
+    public void clearToken() {
+    	token =null;
+    }
+    public JSONObject get(String baseUrl,String url, JSONObject requestParams, JSONObject pathParam) throws Exception {
+    	this.baseUrl = baseUrl;
+    	
+    	if (!isValidToken()){
             initToken();
         }
         Cookie kukki = new Cookie.Builder("Authorization", token).build();
@@ -96,8 +106,10 @@ public class APIRequestUtil {
     }
 
 
-    public JSONObject post(String url, JSONObject jsonRequest) throws Exception {
-        if (!isValidToken()){
+    public JSONObject post(String baseUrl,String url, JSONObject jsonRequest) throws Exception {
+    	this.baseUrl = baseUrl;
+    	
+    	if (!isValidToken()){
             initToken();
         }
 
@@ -110,8 +122,10 @@ public class APIRequestUtil {
     }
 
 
-    public JSONArray syncRid(String url, String requestBody, String timestamp) throws Exception {
-        if (!isValidToken()){
+    public JSONArray syncRid(String baseUrl,String url, String requestBody, String timestamp) throws Exception {
+    	this.baseUrl = baseUrl;
+    	
+    	if (!isValidToken()){
             initToken();
         }
 
@@ -131,8 +145,10 @@ public class APIRequestUtil {
         return new JSONObject(response.getBody().asString()).getJSONArray(dataKey);
     }
 
-    public JSONObject uploadFile(String url, String filePath) throws Exception {
-        if (!isValidToken()){
+    public JSONObject uploadFile(String baseUrl,String url, String filePath) throws Exception {
+    	this.baseUrl = baseUrl;
+    	
+    	if (!isValidToken()){
             initToken();
         }
         Cookie kukki = new Cookie.Builder("Authorization", token).build();
@@ -142,10 +158,17 @@ public class APIRequestUtil {
     }
 
     private boolean isValidToken() throws Exception {
+    	Object obj = VariableManager.getVariableValue("urlSwitched");
+    	if(obj != null) {
+    		Boolean bClear = (Boolean) obj;
+    		if(bClear)
+    			return false;
+    	}
         if(jwtProcessor == null) {
             jwtProcessor = new DefaultJWTProcessor<>();
             jwtProcessor.setJWSTypeVerifier(new DefaultJOSEObjectTypeVerifier<>(new JOSEObjectType("jwt")));
-            JWKSource<SecurityContext> keySource = new RemoteJWKSet<>(new URL(jwksUrl));
+            //fix SA
+            JWKSource<SecurityContext> keySource = new RemoteJWKSet<>(new URL(baseUrl + jwksUrl));
             JWSAlgorithm expectedJWSAlg = JWSAlgorithm.RS256;
             JWSKeySelector<SecurityContext> keySelector = new JWSVerificationKeySelector<>(expectedJWSAlg, keySource);
             jwtProcessor.setJWSKeySelector(keySelector);
@@ -185,7 +208,7 @@ public class APIRequestUtil {
 
             //authManagerURL
             //String AUTH_URL = "v1/authmanager/authenticate/internal/useridPwd";
-            Response response = given().contentType("application/json").body(requestBody.toString()).post(authManagerURL);
+            Response response = given().contentType("application/json").body(requestBody.toString()).post(baseUrl + authManagerURL);
 			logger.info("Authtoken generation request response: {}", response.asString());
 
             if (response.toString().contains("errorCode")) return false;
@@ -206,7 +229,7 @@ public class APIRequestUtil {
      * @param time nullable send null if you need current time.
      * @return the date as string as used by our request api.
      */
-    public String getUTCDateTime(LocalDateTime time) {
+    public static String getUTCDateTime(LocalDateTime time) {
 		String DATEFORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
         DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern(DATEFORMAT);
         if (time == null){
@@ -221,7 +244,7 @@ public class APIRequestUtil {
      * @param date nullable send null if you need current time.
      * @return the date as string as used by our request api.
      */
-    public String getUTCDate(LocalDateTime date) {
+    public static String getUTCDate(LocalDateTime date) {
 		String DATEFORMAT = "yyyy-MM-dd";
         DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern(DATEFORMAT);
         if (date == null){

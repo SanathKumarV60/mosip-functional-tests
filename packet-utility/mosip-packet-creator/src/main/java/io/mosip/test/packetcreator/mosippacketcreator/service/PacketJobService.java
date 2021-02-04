@@ -1,7 +1,8 @@
 package io.mosip.test.packetcreator.mosippacketcreator.service;
 
 import org.jobrunr.jobs.annotations.Job;
-import org.jobrunr.storage.StorageProvider;
+
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -17,9 +18,7 @@ public class PacketJobService {
 
     private Logger logger = LoggerFactory.getLogger(PacketJobService.class);
 
-    @Autowired
-    private StorageProvider storageProvider;
-
+  
     @Autowired
     private PreregSyncService preregSyncService;
 
@@ -43,7 +42,7 @@ public class PacketJobService {
                 logger.info("Started for PRID", keys.get(i));
                 String prid = keys.getString(i);
                 try {
-                    String location = preregSyncService.downloadPreregPacket(prid);
+                    String location = preregSyncService.downloadPreregPacket(prid, null);
                     logger.info("Downloaded the prereg packet in {} ", location);
 
                     File targetDirectory = Path.of(preregSyncService.getWorkDirectory(), prid).toFile();
@@ -57,16 +56,16 @@ public class PacketJobService {
 
                     logger.info("Unzipped the prereg packet {}, ID.json exists : {}", prid, idJsonPath.toFile().exists());
 
-                    String packetPath = packetMakerService.createContainer(idJsonPath.toString(),null);
+                    String packetPath = packetMakerService.createContainer(idJsonPath.toString(),null,null,null,null);
 
                     logger.info("Packet created : {}", packetPath);
 
                     String response = packetSyncService.syncPacketRid(packetPath, "dummy", "APPROVED",
-                            "dummy");
+                            "dummy", null,null);
 
                     logger.info("RID Sync response : {}", response);
 
-                    response =  packetSyncService.uploadPacket(packetPath);
+                    response =  packetSyncService.uploadPacket(packetPath,null);
 
                     logger.info("Packet Sync response : {}", response);
 

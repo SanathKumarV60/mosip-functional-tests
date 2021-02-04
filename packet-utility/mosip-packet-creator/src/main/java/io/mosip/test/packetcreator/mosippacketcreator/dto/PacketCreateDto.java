@@ -7,4 +7,6 @@ public class PacketCreateDto {
 
     private String idJsonPath;
     private String templatePath;
+    private String source;
+    private String process;
 }

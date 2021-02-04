@@ -30,10 +30,10 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.PersonaRequestDto;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.PersonaRequestType;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.ResidentRequestDto;
-
+import variables.VariableManager;
 
 import java.io.File;
-
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -73,6 +73,9 @@ public class PacketSyncService {
     
     @Autowired
     private PacketSyncService packetSyncService;
+    @Autowired
+    private ContextUtils contextUtils;
+    
     
     @Value("${mosip.test.primary.langcode}")
     private String primaryLangCode;
@@ -94,11 +97,44 @@ public class PacketSyncService {
 
     @Value("${mosip.test.prereg.mapfile:Preregistration.properties}")
     private String preRegMapFile;
+   
+    @Value("${mosip.test.persona.configpath}")
+    private String personaConfigPath;
+   
+
+    @Value("${mosip.test.baseurl}")
+    private String baseUrl;
+
+    void loadServerContextProperties(String contextKey) {
+    	
+    	if(contextKey != null && !contextKey.equals("")) {
+    		
+    		Properties props = contextUtils.loadServerContext(contextKey);
+    		props.forEach((k,v)->{
+    			String key = k.toString().trim();
+    			String ns = VariableManager.NS_DEFAULT;
+    			
+    			if(!key.startsWith("mosip.test")) {
+    	
+    				if(key.startsWith("prereg"))
+    					ns = VariableManager.NS_PREREG;
+    				else
+    				if(key.startsWith("regclient"))
+        				ns = VariableManager.NS_REGCLIENT;
+        					
+    				VariableManager.setVariableValue(ns,key, v);
+    			}
+    			
+    		});
+    	}
+    }
 
   //this will generate the requested number of resident data
     // Save the data in configured path as JSON
     // return list of resident Ids
-    public String generateResidentData(int count,PersonaRequestDto residentRequestDto) {
+    public String generateResidentData(int count,PersonaRequestDto residentRequestDto, String contextKey) {
+    	
+    	loadServerContextProperties(contextKey);
     	
     	Properties props = residentRequestDto.getRequests().get(PersonaRequestType.PR_ResidentAttribute);
     	Gender enumGender = Gender.Any;
@@ -133,6 +169,10 @@ public class PacketSyncService {
 		if(props.containsKey("Finger")) {
 			provider.addCondition(ResidentAttribute.RA_Finger, Boolean.parseBoolean(props.get("Finger").toString()));
 		}
+		if(props.containsKey("Iris")) {
+			provider.addCondition(ResidentAttribute.RA_Iris, Boolean.parseBoolean(props.get("Iris").toString()));
+		}
+		
 		logger.info("before Genrate");
 		List<ResidentModel> lst = provider.generate();
 		logger.info("After Genrate");
@@ -166,10 +206,10 @@ public class PacketSyncService {
     	return response.toString();
     			//"{\"status\":\"SUCCESS\"}";
     }
-    public JSONObject makePacketAndSync(String preregId, String templateLocation) throws Exception {
+    public JSONObject makePacketAndSync(String preregId, String templateLocation, String contextKey) throws Exception {
     	logger.info("makePacketAndSync for PRID : {}", preregId);
 
-    	String location = preregSyncService.downloadPreregPacket( preregId);
+    	String location = preregSyncService.downloadPreregPacket( preregId, contextKey);
         logger.info("Downloaded the prereg packet in {} ", location);
         File targetDirectory = Path.of(preregSyncService.getWorkDirectory(), preregId).toFile();
         if(!targetDirectory.exists()  && !targetDirectory.mkdir())
@@ -182,12 +222,12 @@ public class PacketSyncService {
 
         logger.info("Unzipped the prereg packet {}, ID.json exists : {}", preregId, idJsonPath.toFile().exists());
 
-        String packetPath = packetMakerService.createContainer(idJsonPath.toString(),templateLocation);
+        String packetPath = packetMakerService.createContainer(idJsonPath.toString(),templateLocation,null,null, contextKey);
 
         logger.info("Packet created : {}", packetPath);
 
         String response = packetSyncService.syncPacketRid(packetPath, "dummy", "APPROVED",
-                "dummy");
+                "dummy", null, contextKey);
 
         logger.info("RID Sync response : {}", response);
     	JSONObject functionResponse = new JSONObject();
@@ -199,7 +239,7 @@ public class PacketSyncService {
         	if(resp.getString("status").equals("SUCCESS")) {
         	//RID Sync response : [{"registrationId":"10010100241000120201214134111","status":"SUCCESS"}]
         		String rid = resp.getString("registrationId");
-        		response =  packetSyncService.uploadPacket(packetPath);
+        		response =  packetSyncService.uploadPacket(packetPath, contextKey);
         		logger.info("Packet Sync response : {}", response);
         		JSONObject obj =  new JSONObject(response);
         		if(obj.getString("status").equals("Packet has reached Packet Receiver")) {
@@ -221,10 +261,40 @@ public class PacketSyncService {
     	
     }
     public String syncPacketRid(String containerFile, String name,
-                                String supervisorStatus, String supervisorComment) throws Exception {
-        Path container = Path.of(containerFile);
+                                String supervisorStatus, String supervisorComment, String proc,String contextKey) throws Exception {
+        
+    	if(contextKey != null && !contextKey.equals("")) {
+    		
+    		Properties props = contextUtils.loadServerContext(contextKey);
+    		props.forEach((k,v)->{
+    			if(k.toString().equals("mosip.test.packet.syncapi")) {
+    				syncapi = v.toString();
+    			}
+    			else
+    			if(k.toString().equals("mosip.test.regclient.machineid")) {
+    				machineId = v.toString();
+    			}
+    			else
+    			if(k.toString().equals("mosip.test.primary.langcode")) {
+        			primaryLangCode = v.toString();
+        		}
+    			else
+    			if(k.toString().equals("mosip.test.regclient.centerid")) {
+        			centerId = v.toString();
+        		}
+    			else
+        		if(k.toString().equals("mosip.test.baseurl")) {
+            		baseUrl = v.toString();
+            	}	
+    			
+    		});
+    	}
+    	Path container = Path.of(containerFile);
         String rid = container.getName(container.getNameCount()-1).toString().replace(".zip", "");
+        if(proc !=null && !proc.equals(""))
+        	process = proc;
         logger.info("Syncing data for RID : {}", rid);
+        logger.info("Syncing data: process:", process);
 
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("registrationId", rid);
@@ -245,7 +315,7 @@ public class PacketSyncService {
 
         JSONObject wrapper = new JSONObject();
         wrapper.put("id", "mosip.registration.sync");
-        wrapper.put("requesttime", apiRequestUtil.getUTCDateTime(LocalDateTime.now(ZoneOffset.UTC)));
+        wrapper.put("requesttime", APIRequestUtil.getUTCDateTime(LocalDateTime.now(ZoneOffset.UTC)));
         wrapper.put("version", "1.0");
         wrapper.put("request", list);
 
@@ -256,20 +326,38 @@ public class PacketSyncService {
 
         String requestBody = Base64.encodeBase64URLSafeString(
                 cryptoUtil.encrypt(wrapper.toString().getBytes("UTF-8"),
-                centerId + UNDERSCORE + machineId, timestamp));
+                centerId + UNDERSCORE + machineId, timestamp, contextKey) );
 
-        JSONArray response = apiRequestUtil.syncRid(syncapi, requestBody, apiRequestUtil.getUTCDateTime(timestamp));
+        JSONArray response = apiRequestUtil.syncRid(baseUrl,baseUrl+syncapi, requestBody, APIRequestUtil.getUTCDateTime(timestamp));
 
         return response.toString();
     }
 
-    public String uploadPacket(String path) throws Exception {
-        JSONObject response = apiRequestUtil.uploadFile(uploadapi, path);
+    public String uploadPacket(String path, String contextKey) throws Exception {
+    	
+    	if(contextKey != null && !contextKey.equals("")) {
+    		
+    		Properties props = contextUtils.loadServerContext(contextKey);
+    		props.forEach((k,v)->{
+    			if(k.toString().equals("mosip.test.packet.uploadapi")) {
+    		
+    				uploadapi = v.toString();
+    				
+    			}
+    			else
+            		if(k.toString().equals("mosip.test.baseurl")) {
+                		baseUrl = v.toString();
+                	}	
+    		});
+    	}
+        JSONObject response = apiRequestUtil.uploadFile(baseUrl, baseUrl+uploadapi, path);
         return response.toString();
     }
 
-    public String preRegisterResident(List<String> personaFilePath) throws IOException {
+    public String preRegisterResident(List<String> personaFilePath, String contextKey) throws IOException {
     	StringBuilder builder = new StringBuilder();
+    	
+    	loadServerContextProperties(contextKey);
     	
     	for(String path: personaFilePath) {
     		ResidentModel resident = readPersona(path);
@@ -310,9 +398,10 @@ public class PacketSyncService {
     	}
     	return null;
     }
-    public String requestOtp(List<String> personaFilePath, String to) throws IOException {
+    public String requestOtp(List<String> personaFilePath, String to, String contextKey) throws IOException {
     	StringBuilder builder = new StringBuilder();
     	
+    	loadServerContextProperties(contextKey);
     	
     	for(String path: personaFilePath) {
     		ResidentModel resident = readPersona(path);
@@ -322,8 +411,9 @@ public class PacketSyncService {
     	}
     	return builder.toString();
     }
-    public String verifyOtp(String personaFilePath, String to, String otp) throws IOException {
+    public String verifyOtp(String personaFilePath, String to, String otp, String contextKey) throws IOException {
     
+    	loadServerContextProperties(contextKey);
     	ResidentModel resident = readPersona(personaFilePath);
     	ResidentPreRegistration preReg = new ResidentPreRegistration(resident);
     	
@@ -331,10 +421,17 @@ public class PacketSyncService {
     	return preReg.verifyOtp(to,otp);
     		
     }
-    public String bookAppointment( String preRegID,int nthSlot) {
+    public String bookAppointment( String preRegID,int nthSlot, String contextKey) {
    	
     String retVal= "{\"Failed\"}";
     Boolean bBooked = false;
+    
+    loadServerContextProperties(contextKey);
+    
+    String base = VariableManager.getVariableValue("urlBase").toString().trim();
+	String api = VariableManager.getVariableValue(VariableManager.NS_PREREG, "appointmentslots").toString().trim();
+	String centerId = VariableManager.getVariableValue(VariableManager.NS_REGCLIENT, "centerId").toString().trim();
+	logger.info("BookAppointment:" + base +","+ api + ","+centerId);
 	
    	 AppointmentModel res = PreRegistrationSteps.getAppointments();
 		
@@ -357,9 +454,12 @@ public class PacketSyncService {
 		return retVal;
     }
    
-    public String uploadDocuments(String personaFilePath, String preregId) throws IOException {
+    public String uploadDocuments(String personaFilePath, String preregId, String contextKey) throws IOException {
     
     	String response = "";
+    	
+    	loadServerContextProperties(contextKey);
+    	
     	ResidentModel resident = readPersona(personaFilePath);
     	 
     	//System.out.println("uploadProof " + docCategory);
@@ -374,13 +474,17 @@ public class PacketSyncService {
 		    
     	return response;
     }
-    public String createPackets(List<String> personaFilePaths, String process, String outDir) throws IOException {
+    public String createPackets(List<String> personaFilePaths, String process, String outDir, String contextKey) throws IOException {
 
 
     	Path packetDir = null;
     	JSONArray packetPaths = new JSONArray();
     	
     	logger.info("createPacket->outDir:" + outDir);
+
+    	
+    	loadServerContextProperties(contextKey);
+    	
     	if(outDir == null || outDir.trim().equals("")) {
     		packetDir = Files.createTempDirectory("packets_");
     	}
@@ -391,11 +495,14 @@ public class PacketSyncService {
     	if(!packetDir.toFile().exists()) {
     		packetDir.toFile().createNewFile();
     	}
+    	PacketTemplateProvider packetTemplateProvider = new PacketTemplateProvider();
+    	
     	for(String path: personaFilePaths) {
     		ResidentModel resident = readPersona(path);
     		String packetPath = packetDir.toString()+File.separator + resident.getId();
     		
-    		PacketTemplateProvider.generate("registration_client", process, resident, packetPath);
+    		
+    		packetTemplateProvider.generate("registration_client", process, resident, packetPath);
     		JSONObject obj = new JSONObject();
     		obj.put("id",resident.getId());
     		obj.put("path", packetPath);
@@ -408,9 +515,9 @@ public class PacketSyncService {
     	response.put("packets", packetPaths);
      	return response.toString();
     }
-    public String preRegToRegister( String templatePath, String preRegId) throws Exception {
+    public String preRegToRegister( String templatePath, String preRegId, String contextKey) throws Exception {
   
-    	return makePacketAndSync(preRegId, templatePath).toString();
+    	return makePacketAndSync(preRegId, templatePath, contextKey).toString();
   		
   	  
     }
@@ -461,4 +568,6 @@ public class PacketSyncService {
 		return mapper.readValue(bytes, ResidentModel.class);
 		
     }
+
+ 
 }

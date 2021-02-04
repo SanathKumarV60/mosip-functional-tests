@@ -1,13 +1,17 @@
 package io.mosip.test.packetcreator.mosippacketcreator.controller;
 
 import java.util.Base64;
+import java.util.Properties;
 
 import io.mosip.test.packetcreator.mosippacketcreator.dto.PacketCreateDto;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.PersonaRequestDto;
 import io.mosip.test.packetcreator.mosippacketcreator.dto.PreRegisterRequestDto;
-import io.mosip.test.packetcreator.mosippacketcreator.dto.ResidentRequestDto;
+
+
 import io.mosip.test.packetcreator.mosippacketcreator.dto.SyncRidDto;
 import io.mosip.test.packetcreator.mosippacketcreator.service.*;
+import variables.VariableManager;
+
 import org.jobrunr.scheduling.JobScheduler;
 import org.jobrunr.scheduling.cron.Cron;
 import org.mosip.dataprovider.util.DataProviderConstants;
@@ -53,10 +57,39 @@ public class TestDataController {
     @Autowired
     PacketJobService packetJobService;
 
+    @Autowired
+    ContextUtils contextUtils;
+    
+
+    @Value("${mosip.test.baseurl}")
+    private String baseUrl;
+
+    @PostMapping(value = "/servercontext/{contextKey}")
+    public @ResponseBody String createServerContext(@RequestBody Properties contextProperties, @PathVariable("contextKey") String contextKey) {
+    	Boolean bRet = false;
+    	try{
+    		bRet = contextUtils.createUpdateServerContext(contextProperties, contextKey);
+    	 } catch (Exception ex){
+              logger.error("createServerContext", ex);
+         }
+    	return bRet.toString();
+    }
+    @GetMapping(value = "/servercontext/{contextKey}")
+    public @ResponseBody Properties getServerContext( @PathVariable("contextKey") String contextKey) {
+    	Properties bRet = null;
+    	try{
+    		bRet = contextUtils.loadServerContext( contextKey);
+    	 } catch (Exception ex){
+              logger.error("createServerContext", ex);
+         }
+    	return bRet;
+    }
     @PostMapping(value = "/packetcreator")
-    public @ResponseBody String getTestData(@RequestBody PacketCreateDto packetCreateDto) {
+    public @ResponseBody String createPacket(@RequestBody PacketCreateDto packetCreateDto, 
+    		@PathVariable("contextKey") String contextKey) {
         try{
-            return pkm.createContainer(packetCreateDto.getIdJsonPath(), packetCreateDto.getTemplatePath());
+            return pkm.createContainer(packetCreateDto.getIdJsonPath(), packetCreateDto.getTemplatePath(),
+            		packetCreateDto.getSource(), packetCreateDto.getProcess(), contextKey);
         } catch (Exception ex){
              logger.error("", ex);
         }
@@ -68,6 +101,14 @@ public class TestDataController {
         return String.valueOf(apiUtil.initToken());
     }
 
+    @GetMapping(value = "/clearToken")
+    public @ResponseBody String ClearToken() {
+    	VariableManager.setVariableValue("urlSwitched",true);
+    	return "Success";
+    	//return String.valueOf(apiUtil.initToken());
+    }
+    
+    
     @GetMapping(value = "/sync")
     public @ResponseBody String syncPreregData() {
         try {
@@ -80,9 +121,10 @@ public class TestDataController {
     }
         
     @GetMapping(value = "/sync/{preregId}")
-    public @ResponseBody String getPreregData(@PathVariable("preregId") String preregId){
+    public @ResponseBody String getPreregData(@PathVariable("preregId") String preregId,
+    		@RequestParam(name="contextKey",required = false) String contextKey){
         try{
-            return pss.downloadPreregPacket(preregId);
+            return pss.downloadPreregPacket(preregId, contextKey);
         } catch(Exception exception){
             logger.error("", exception);
             return "Failed";
@@ -90,19 +132,23 @@ public class TestDataController {
     }
 
     @GetMapping(value = "/encrypt")
-    public @ResponseBody String encryptData() throws Exception {
-        return Base64.getUrlEncoder().encodeToString(cryptoUtil.encrypt("test".getBytes(), "referenceId"));
+    public @ResponseBody String encryptData(
+    		@RequestParam(name="contextKey",required = false) String contextKey) throws Exception {
+        return Base64.getUrlEncoder().encodeToString(cryptoUtil.encrypt("test".getBytes(), "referenceId", contextKey));
     }
 
     @PostMapping(value = "/ridsync")
-    public @ResponseBody String syncRid(@RequestBody SyncRidDto syncRidDto) throws Exception {
+    public @ResponseBody String syncRid(@RequestBody SyncRidDto syncRidDto,
+    		@RequestParam(name="contextKey",required = false) String contextKey) throws Exception {
+    	
         return packetSyncService.syncPacketRid(syncRidDto.getContainerPath(), syncRidDto.getName(),
-                syncRidDto.getSupervisorStatus(), syncRidDto.getSupervisorComment());
+                syncRidDto.getSupervisorStatus(), syncRidDto.getSupervisorComment(), syncRidDto.getProcess(), contextKey);
     }
 
     @GetMapping(value = "/packetsync")
-    public @ResponseBody String packetsync(String path) throws Exception {
-        return packetSyncService.uploadPacket(path);
+    public @ResponseBody String packetsync(String path, 
+    		@RequestParam(name="contextKey",required = false) String contextKey) throws Exception {
+        return packetSyncService.uploadPacket(path, contextKey);
     }
 
     @GetMapping(value = "/startjob")
@@ -112,13 +158,14 @@ public class TestDataController {
         return response;
     }
     @GetMapping(value = "/makepacketandsync/{preregId}")
-    public @ResponseBody String makePacketAndSync(@PathVariable("preregId") String preregId) {
+    public @ResponseBody String makePacketAndSync(@PathVariable("preregId") String preregId,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.makePacketAndSync(preregId,null).toString();
+    		return packetSyncService.makePacketAndSync(preregId,null, contextKey).toString();
     	
     	} catch (Exception ex){
              logger.error("makePacketAndSync", ex);
@@ -126,7 +173,9 @@ public class TestDataController {
     	return "{Failed}";
     }
     @PostMapping(value = "/resident/{count}")
-    public @ResponseBody String generateResidentData(@RequestBody PersonaRequestDto residentRequestDto, @PathVariable("count") int count) {
+    public @ResponseBody String generateResidentData(@RequestBody PersonaRequestDto residentRequestDto,
+    		@PathVariable("count") int count,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{
     		logger.info("Persona Config Path="+ personaConfigPath );
@@ -140,7 +189,7 @@ public class TestDataController {
     		
     		logger.info("Resource Path="+ DataProviderConstants.RESOURCE );
     		logger.info("DOC_Template Path="+ DataProviderConstants.RESOURCE+DataProviderConstants.DOC_TEMPLATE_PATH);
-    		return packetSyncService.generateResidentData(count,residentRequestDto).toString();
+    		return packetSyncService.generateResidentData(count,residentRequestDto, contextKey).toString();
     	
     	} catch (Exception ex){
              logger.error("generateResidentData", ex);
@@ -169,13 +218,14 @@ public class TestDataController {
     	
     }
     @PostMapping(value = "/preregister/")
-    public @ResponseBody String preRegisterResident(@RequestBody PreRegisterRequestDto preRegisterRequestDto) {
+    public @ResponseBody String preRegisterResident(@RequestBody PreRegisterRequestDto preRegisterRequestDto,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.preRegisterResident(preRegisterRequestDto.getPersonaFilePath());
+    		return packetSyncService.preRegisterResident(preRegisterRequestDto.getPersonaFilePath(), contextKey);
     	
     	} catch (Exception ex){
              logger.error("registerResident", ex);
@@ -186,13 +236,14 @@ public class TestDataController {
      * to : email | mobile
      */
     @PostMapping(value = "/requestotp/{to}") 
-    public @ResponseBody String requestOtp(@RequestBody PreRegisterRequestDto preRegisterRequestDto, @PathVariable("to") String to) {
+    public @ResponseBody String requestOtp(@RequestBody PreRegisterRequestDto preRegisterRequestDto, @PathVariable("to") String to,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.requestOtp(preRegisterRequestDto.getPersonaFilePath(), to);
+    		return packetSyncService.requestOtp(preRegisterRequestDto.getPersonaFilePath(), to, contextKey);
     	
     	} catch (Exception ex){
              logger.error("requestOtp", ex);
@@ -201,13 +252,14 @@ public class TestDataController {
     }
     
     @PostMapping(value = "/verifyotp/{to}")
-    public @ResponseBody String verifyOtp(@RequestBody PreRegisterRequestDto preRegisterRequestDto,@PathVariable("to") String to) {
+    public @ResponseBody String verifyOtp(@RequestBody PreRegisterRequestDto preRegisterRequestDto,@PathVariable("to") String to,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.verifyOtp(preRegisterRequestDto.getPersonaFilePath().get(0), to, null);
+    		return packetSyncService.verifyOtp(preRegisterRequestDto.getPersonaFilePath().get(0), to, null, contextKey);
     	
     	} catch (Exception ex){
              logger.error("verifyOtp", ex);
@@ -218,13 +270,14 @@ public class TestDataController {
      * Book first nn th available slot
      */
     @PostMapping(value = "/bookappointment/{preregid}/{nthSlot}")
-    public @ResponseBody String bookAppointment(@PathVariable("preregid") String preregId,@PathVariable("nthSlot") int  nthSlot) {
+    public @ResponseBody String bookAppointment(@PathVariable("preregid") String preregId,@PathVariable("nthSlot") int  nthSlot,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.bookAppointment(preregId,nthSlot);
+    		return packetSyncService.bookAppointment(preregId,nthSlot, contextKey);
     	
     	} catch (Exception ex){
              logger.error("bookAppointment", ex);
@@ -233,13 +286,14 @@ public class TestDataController {
     }
     
     @PostMapping(value = "/documents/{preregid}")
-    public @ResponseBody String uploadDocuments(@RequestBody PreRegisterRequestDto preRegisterRequestDto,@PathVariable("preregid") String preregId) {
+    public @ResponseBody String uploadDocuments(@RequestBody PreRegisterRequestDto preRegisterRequestDto,@PathVariable("preregid") String preregId,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.uploadDocuments(preRegisterRequestDto.getPersonaFilePath().get(0),preregId);
+    		return packetSyncService.uploadDocuments(preRegisterRequestDto.getPersonaFilePath().get(0),preregId, contextKey);
     	
     	} catch (Exception ex){
              logger.error("uploadDocuments", ex);
@@ -250,13 +304,14 @@ public class TestDataController {
     @PostMapping(value = "/packet/{process}/{outFolderPath}")
     public @ResponseBody String createPackets(@RequestBody PreRegisterRequestDto preRegisterRequestDto,
     		@PathVariable("process") String process,
-    		@PathVariable("outFolderPath") String outFolderPath) {
+    		@PathVariable("outFolderPath") String outFolderPath,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.createPackets(preRegisterRequestDto.getPersonaFilePath(),process,outFolderPath);
+    		return packetSyncService.createPackets(preRegisterRequestDto.getPersonaFilePath(),process,outFolderPath, contextKey);
     	
     	} catch (Exception ex){
              logger.error("createPackets", ex);
@@ -269,13 +324,14 @@ public class TestDataController {
      */
     @PostMapping(value = "/packet/sync/{preregId}")
     public @ResponseBody String preRegToRegister(@RequestBody PreRegisterRequestDto preRegisterRequestDto,
-    		@PathVariable("preregId") String preregId) {
+    		@PathVariable("preregId") String preregId,
+    		@RequestParam(name="contextKey",required = false) String contextKey) {
 
     	try{    	
     		if(personaConfigPath !=null && !personaConfigPath.equals("")) {
     			DataProviderConstants.RESOURCE = personaConfigPath;
     		}
-    		return packetSyncService.preRegToRegister(preRegisterRequestDto.getPersonaFilePath().get(0),preregId);
+    		return packetSyncService.preRegToRegister(preRegisterRequestDto.getPersonaFilePath().get(0),preregId, contextKey);
     	
     	} catch (Exception ex){
              logger.error("createPacket", ex);

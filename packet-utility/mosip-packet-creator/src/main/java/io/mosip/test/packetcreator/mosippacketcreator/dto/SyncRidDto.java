@@ -11,5 +11,5 @@ public class SyncRidDto {
     private String containerPath;
     private String supervisorStatus;
     private String supervisorComment;
-
+    private String process;
 }

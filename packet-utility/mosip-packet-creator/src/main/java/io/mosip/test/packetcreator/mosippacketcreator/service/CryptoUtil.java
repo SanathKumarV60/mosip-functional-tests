@@ -1,25 +1,26 @@
 package io.mosip.test.packetcreator.mosippacketcreator.service;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
+
 import java.io.FileOutputStream;
-import java.io.IOException;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+
 import java.security.*;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Arrays;
+
 import java.util.Base64;
+import java.util.Properties;
 
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.jdbc.core.metadata.TableMetaDataProviderFactory;
+
 import org.springframework.stereotype.Component;
 import tss.Tpm;
 import tss.TpmFactory;
@@ -62,6 +63,12 @@ public class CryptoUtil {
     @Autowired
     private APIRequestUtil apiUtil;
 
+    @Value("${mosip.test.baseurl}")
+    private String baseUrl;
+   
+    @Autowired
+    private ContextUtils contextUtils;
+   
     private SecureRandom sr = new SecureRandom();
 
     private static Tpm tpm;
@@ -79,7 +86,18 @@ public class CryptoUtil {
         }
     }
     
-    public byte[] encrypt(byte[] data, String referenceId) throws Exception {
+    public byte[] encrypt(byte[] data, String referenceId, String contextKey) throws Exception {
+    	
+    	if(contextKey != null && !contextKey.equals("")) {
+    		
+    		Properties props = contextUtils.loadServerContext(contextKey);
+    		props.forEach((k,v)->{
+    			if(k.toString().equals("mosip.test.baseurl")) {
+    				baseUrl = v.toString().trim();
+    			}
+    			
+    		});
+    	}
         JSONObject encryptObj = new JSONObject();
         
         encryptObj.put("aad", getRandomBytes(GCM_AAD_LENGTH));
@@ -88,22 +106,22 @@ public class CryptoUtil {
         encryptObj.put("prependThumbprint", prependthumbprint);
         encryptObj.put("referenceId", referenceId);
         encryptObj.put("salt", getRandomBytes(GCM_NONCE_LENGTH));
-        encryptObj.put("timeStamp",apiUtil.getUTCDateTime(null));
+        encryptObj.put("timeStamp",APIRequestUtil.getUTCDateTime(null));
 
         JSONObject wrapper = new JSONObject();
         wrapper.put("id", "mosip.registration.sync");
-        wrapper.put("requesttime", apiUtil.getUTCDateTime(LocalDateTime.now(ZoneOffset.UTC)));
+        wrapper.put("requesttime", APIRequestUtil.getUTCDateTime(LocalDateTime.now(ZoneOffset.UTC)));
         wrapper.put("version", "1.0");
         wrapper.put("request", encryptObj);
 
-        JSONObject secretObject = apiUtil.post(encryptApi, wrapper);
+        JSONObject secretObject = apiUtil.post(baseUrl, baseUrl+encryptApi, wrapper);
         byte[] encBytes = org.apache.commons.codec.binary.Base64.decodeBase64(secretObject.getString("data"));
         return mergeEncryptedData(encBytes, org.apache.commons.codec.binary.Base64.decodeBase64(encryptObj.getString("salt")),
                 org.apache.commons.codec.binary.Base64.decodeBase64(encryptObj.getString("aad")));
     }
 
-    public boolean encryptPacket(byte[] data, String referenceId, String packetLocation) throws  Exception {
-        byte[] encData = encrypt(data, referenceId);
+    public boolean encryptPacket(byte[] data, String referenceId, String packetLocation, String contextKey) throws  Exception {
+        byte[] encData = encrypt(data, referenceId, contextKey);
         try(FileOutputStream fos = new FileOutputStream(packetLocation)){
             fos.write(encData);
             fos.flush();
@@ -111,24 +129,34 @@ public class CryptoUtil {
         }
     }
 
-    public byte[] encrypt(byte[] data, String referenceId, LocalDateTime timestamp) throws Exception {
+    public byte[] encrypt(byte[] data, String referenceId, LocalDateTime timestamp, String contextKey) throws Exception {
         JSONObject encryptObj = new JSONObject();
 
+        if(contextKey != null && !contextKey.equals("")) {
+    		
+    		Properties props = contextUtils.loadServerContext(contextKey);
+    		props.forEach((k,v)->{
+    			if(k.toString().equals("mosip.test.baseurl")) {
+    				baseUrl = v.toString().trim();
+    			}
+    			
+    		});
+    	}
         encryptObj.put("aad", getRandomBytes(GCM_AAD_LENGTH));
         encryptObj.put("applicationId", encryptionAppId);
         encryptObj.put("data", org.apache.commons.codec.binary.Base64.encodeBase64String(data));
-        encryptObj.put("prependThumbprint", false);
+        encryptObj.put("prependThumbprint", prependthumbprint);
         encryptObj.put("referenceId", referenceId);
         encryptObj.put("salt", getRandomBytes(GCM_NONCE_LENGTH));
-        encryptObj.put("timeStamp", apiUtil.getUTCDateTime(timestamp));
+        encryptObj.put("timeStamp", APIRequestUtil.getUTCDateTime(timestamp));
 
         JSONObject wrapper = new JSONObject();
         wrapper.put("id", "mosip.registration.sync");
-        wrapper.put("requesttime", apiUtil.getUTCDateTime(LocalDateTime.now(ZoneOffset.UTC)));
+        wrapper.put("requesttime", APIRequestUtil.getUTCDateTime(LocalDateTime.now(ZoneOffset.UTC)));
         wrapper.put("version", "1.0");
         wrapper.put("request", encryptObj);
 
-        JSONObject secretObject = apiUtil.post(encryptApi, wrapper);
+        JSONObject secretObject = apiUtil.post(baseUrl, baseUrl+encryptApi, wrapper);
         byte[] encBytes = org.apache.commons.codec.binary.Base64.decodeBase64(secretObject.getString("data"));
         byte[] mergeddata = mergeEncryptedData(encBytes, org.apache.commons.codec.binary.Base64.decodeBase64(encryptObj.getString("salt")),
                 org.apache.commons.codec.binary.Base64.decodeBase64(encryptObj.getString("aad")));

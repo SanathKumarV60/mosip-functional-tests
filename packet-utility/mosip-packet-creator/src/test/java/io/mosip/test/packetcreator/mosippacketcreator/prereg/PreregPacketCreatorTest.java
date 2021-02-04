@@ -26,7 +26,7 @@ public class PreregPacketCreatorTest {
         try {
             if(packetMaker == null)
                 packetMaker = new PacketMakerService();
-            assertNotNull(packetMaker.createContainer("/home/sasikumar/Documents/MOSIP/packetcreator/prereg/60736047859260/ID.json", null));
+            assertNotNull(packetMaker.createContainer("/home/sasikumar/Documents/MOSIP/packetcreator/prereg/60736047859260/ID.json", null,null,null,null));
         } catch (Exception ex) {
             // do nothing
             logger.error("", ex);

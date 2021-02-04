@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Properties;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +26,7 @@ public class PreregSyncService {
     @Value("${mosip.test.baseurl}")
     private String baseUrl;
 
-    @Value("${mosip.test.prereg.sycnapi}")
+    @Value("${mosip.test.prereg.syncapi}")
     private String syncapi;
 
     @Value("${mosip.test.regclient.centerid}")
@@ -34,22 +35,23 @@ public class PreregSyncService {
 	@Autowired
 	private APIRequestUtil apiUtil;
 
-	@Autowired
-	private ZipUtils zipUtils;
-
-	@Autowired
-	private PacketMakerService packetMakerService;
-
+	
     private LocalDateTime lastSyncTime;
 
     private String workDirectory;
 
+    @Autowired
+    private ContextUtils contextUtils;
+   
+    
+    
     @PostConstruct
     public void init() {
 		if (workDirectory != null) return;
 		try{
 			workDirectory = Files.createTempDirectory("prereg").toFile().getAbsolutePath();
 			logger.info("CURRENT PRE_REG WORK DIRECTORY --> {}", workDirectory);
+			apiUtil.clearToken();
 		} catch(Exception ex){
 			logger.error("", ex);
 		}
@@ -79,14 +81,26 @@ public class PreregSyncService {
 
 		logger.info("pre-reg sync request {}", wrapper);
 
-		JSONObject preregResponse = apiUtil.post(syncapi, wrapper);
+		JSONObject preregResponse = apiUtil.post(baseUrl,baseUrl + syncapi, wrapper);
 		logger.info("sync responded with {} pre-reg ids", preregResponse.get("countOfPreRegIds"));
 		lastSyncTime = currentSyncTime;		
        return (JSONObject) preregResponse.get("preRegistrationIds");
     }
 
-    public String downloadPreregPacket(String preregId) throws Exception{
-		JSONObject preregResponse = apiUtil.get(syncapi+"/"+preregId, new JSONObject(), new JSONObject());
+    public String downloadPreregPacket(String preregId, String contextKey) throws Exception{
+    	
+    	if(contextKey != null && !contextKey.equals("")) {
+    		
+    		Properties props = contextUtils.loadServerContext(contextKey);
+    		props.forEach((k,v)->{
+    			if(k.toString().equals("mosip.test.baseurl")) {
+    				baseUrl = v.toString().trim();
+    			}
+    			
+    		});
+    	}
+    	
+		JSONObject preregResponse = apiUtil.get(baseUrl,baseUrl + syncapi+"/"+preregId, new JSONObject(), new JSONObject());
 		logger.info("Downloaded data for prereg id {} ", preregResponse.getString("pre-registration-id"));
 		Path temPath = Path.of(workDirectory, preregId+".zip");
 		Files.write(temPath, Base64.getDecoder().decode(preregResponse.getString("zip-bytes")));

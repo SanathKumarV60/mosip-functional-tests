@@ -16,6 +16,7 @@ import org.mosip.dataprovider.models.DynamicFieldValueModel;
 import org.mosip.dataprovider.models.IrisDataModel;
 import org.mosip.dataprovider.models.MosipGenderModel;
 import org.mosip.dataprovider.models.MosipIndividualTypeModel;
+import org.mosip.dataprovider.models.MosipLanguage;
 import org.mosip.dataprovider.models.MosipLocationModel;
 import org.mosip.dataprovider.models.Name;
 import org.mosip.dataprovider.models.ResidentModel;
@@ -82,6 +83,8 @@ public class ResidentDataProvider {
 		String sec_lang = (String) attributeList.get(ResidentAttribute.RA_SECONDARY_LANG);
 		Object oAttr = attributeList.get(ResidentAttribute.RA_Iris);
 		Boolean bIrisRequired = false;
+		
+		List<MosipLanguage> allLang = MosipMasterData.getConfiguredLanguages();
 		
 		if(oAttr != null) {
 			bIrisRequired = (Boolean)oAttr;
@@ -154,7 +157,9 @@ public class ResidentDataProvider {
 		if(sec_lang != null)
 			locations_secLang = LocationProvider.generate(sec_lang, count);
 		
-		List<DynamicFieldValueModel> bloodGroups = BloodGroupProvider.generate(count, dynaFields);
+		List<DynamicFieldValueModel> bloodGroups = null;
+		if(!dynaFields.isEmpty())
+			 bloodGroups = BloodGroupProvider.generate(count, dynaFields);
 
 		Hashtable<String, List<MosipIndividualTypeModel>> resStatusList =  MosipMasterData.getIndividualTypes();
 		
@@ -194,7 +199,8 @@ public class ResidentDataProvider {
 				res.setName_seclang(names_sec.get(i));
 			}
 		
-			res.setBloodgroup(bloodGroups.get(i));
+			if(bloodGroups != null)
+				res.setBloodgroup(bloodGroups.get(i));
 			res.setContact(contacts.get(i));
 			res.setDob( DateOfBirthProvider.generate((ResidentAttribute) attributeList.get(ResidentAttribute.RA_Age)));
 			ResidentAttribute age =  (ResidentAttribute) attributeList.get(ResidentAttribute.RA_Age);

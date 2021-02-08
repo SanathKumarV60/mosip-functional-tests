@@ -553,7 +553,8 @@ public  class MosipMasterData {
 	}
 	public static Boolean isExists(List<MosipIDSchema> lst, String val) {
 		for(MosipIDSchema s: lst) {
-			if(s.getId().equalsIgnoreCase(val))
+			if(s.getSubType() != null && s.getSubType().equalsIgnoreCase(val))
+			//if(s.getId().equalsIgnoreCase(val))
 				return true;
 		}
 		return false;
@@ -580,7 +581,9 @@ public  class MosipMasterData {
 			if(s.getRequired() && s.getControlType() != null && s.getControlType().equals("dropdown") &&
 					( 
 							(s.getContactType() != null && s.getContactType().equals("Postal")) ||
-							(s.getGroup() != null && s.getGroup().equals("Location"))
+							(s.getGroup() != null && (
+									s.getGroup().equals("Location") ||
+									s.getGroup().equals("Adresse")))
 					)
 			) {
 				locSchemaList.add(s);
@@ -595,8 +598,8 @@ public  class MosipMasterData {
 		List<Hashtable<String, MosipLocationModel>>  tblList = new ArrayList< Hashtable<String, MosipLocationModel>>();
 		List<MosipLocationModel> rootLocs =  getImmedeateChildren(levelCode, langCode);
 		if(rootLocs == null && rootLocs.isEmpty()) {
-			throw new Exception("Invalid pre-reg-country-code  No locations configured");
-
+			//throw new Exception("Invalid pre-reg-country-code  No locations configured");
+			return null;
 		}
 		int [] idxArray = CommonUtil.generateRandomNumbers(count, rootLocs.size()-1, 0);
 				
@@ -649,7 +652,7 @@ public  class MosipMasterData {
 	
 		ApplicationConfigIdSchema ss;
 		try {
-			ss = getPreregLocHierarchy("eng",1);
+			ss = getPreregLocHierarchy("fra",1);
 			System.out.println(ss.toJSONString());
 			
 		} catch (Exception e) {

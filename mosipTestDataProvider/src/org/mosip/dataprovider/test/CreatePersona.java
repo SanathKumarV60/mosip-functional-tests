@@ -141,8 +141,10 @@ public class CreatePersona {
 						else {
 							
 							for(String locLevel: locationSet) {
-						
-								if(schemaItem.getId().toLowerCase().contains(locLevel.toLowerCase())) {
+				
+								if(schemaItem.getSubType().toLowerCase().contains(locLevel.toLowerCase())) {
+									
+			//					if(schemaItem.getId().toLowerCase().contains(locLevel.toLowerCase())) {
 									constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
 											resident.getSecondaryLanguage(),
 											locations.get(locLevel).getCode(),
@@ -273,6 +275,9 @@ public class CreatePersona {
 			else
 			if(schemaItem.getRequired()) {
 				String someVal = CommonUtil.generateRandomString(schemaItem.getMaximum());
+				if(schemaItem.getId().equals("IDSchemaVersion"))
+					someVal = Double.toString(schemaversion);
+				
 				constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
 						resident.getSecondaryLanguage(),
 						someVal,
@@ -521,8 +526,9 @@ public class CreatePersona {
 					
 					System.out.println("Schema.id="+ schema.getId() + "== locModel[" + locModel.getHierarchyLevel() + "]=" +locModel.getHierarchyName());
 				
-					if(schema.getId().equalsIgnoreCase(locModel.getHierarchyName())  ) {
-				
+				//	if(schema.getId().equalsIgnoreCase(locModel.getHierarchyName())  ) {
+					if(schema.getSubType().equalsIgnoreCase(locModel.getHierarchyName())  ) {
+						
 						obj = new JSONObject();
 						obj.put("language", locModel.getLangCode());
 						obj.put("value", locModel.getName());
@@ -534,8 +540,9 @@ public class CreatePersona {
 				if(locations_seclang != null)			
 				for(String locLevel:locationSet_sec) {
 					MosipLocationModel locModel = locations.get(locLevel);
-					
-					if(schema.getId().equalsIgnoreCase(locModel.getHierarchyName())  ) {
+					//if(schema.getId().equalsIgnoreCase(locModel.getHierarchyName())  ) {
+						
+					if(schema.getSubType().equalsIgnoreCase(locModel.getHierarchyName())  ) {
 						obj = new JSONObject();
 						obj.put("language", locModel.getLangCode());
 						obj.put("value", locModel.getName());

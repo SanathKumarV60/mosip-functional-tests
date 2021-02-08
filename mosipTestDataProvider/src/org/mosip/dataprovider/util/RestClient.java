@@ -205,9 +205,10 @@ public class RestClient {
 
 	            if (response.toString().contains("errorCode")) return false;
 	            String responseBody = response.getBody().asString();
-	            token = new JSONObject(responseBody).getJSONObject(dataKey).getString("token");
-	            refreshToken = new JSONObject(response.getBody().asString()).getJSONObject(dataKey).getString("refreshToken");
-
+	            //token = new JSONObject(responseBody).getJSONObject(dataKey).getString("token");
+	            //refreshToken = new JSONObject(response.getBody().asString()).getJSONObject(dataKey).getString("refreshToken");
+	            token=response.getCookie("Authorization");
+	            
 				return true;	
 			}
 			catch(Exception  ex){

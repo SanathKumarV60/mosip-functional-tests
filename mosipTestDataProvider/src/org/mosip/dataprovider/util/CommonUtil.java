@@ -80,6 +80,19 @@ public class CommonUtil {
               
             });
 	}
+	public static String generateRandomString(int len) {
+		Random rand = new Random();
+		StringBuilder builder = new StringBuilder();
+		String alphabet = "abcdefghijklmn opqrstuvwxyz_123456789";
+		
+		if(len == 0)
+			len = 20;
+		
+	    for (int i = 0; i < len; i++) {
+	      builder.append( alphabet.charAt(rand.nextInt(alphabet.length())) );
+	    } 
+		return builder.toString();
+	}
 	public static List<File> listFiles(String dirPath){
 		
 		List<File> lstFiles = new ArrayList<File>();

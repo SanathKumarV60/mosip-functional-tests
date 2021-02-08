@@ -5,6 +5,7 @@ import java.io.Serializable;
 import java.nio.file.Files;
 
 import java.nio.file.Paths;
+import java.util.Hashtable;
 import java.util.List;
 
 import org.mosip.dataprovider.preparation.MosipMasterData;
@@ -29,8 +30,14 @@ public class ResidentModel  implements Serializable {
 	private String dob;
 	private Boolean minor;
 	private DynamicFieldValueModel bloodgroup;
-	private List<MosipLocationModel> location;
-	private List<MosipLocationModel> location_seclang;
+	//private List<MosipLocationModel> location;
+	private Hashtable<String, MosipLocationModel> location;
+	
+	//private List<MosipLocationModel> location_seclang;
+	private Hashtable<String, MosipLocationModel> location_seclang;
+	ApplicationConfigIdSchema appConfigIdSchema;
+	ApplicationConfigIdSchema appConfigIdSchema_secLang;
+	
 	private Contact contact;
 	private Name name;
 	private Name name_seclang;

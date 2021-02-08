@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -232,9 +233,15 @@ public class PacketTemplateProvider {
 		JSONObject identity = new JSONObject();
 		String primaryLanguage = resident.getPrimaryLanguage();
 		String secLanguage = resident.getSecondaryLanguage();
-		List<MosipLocationModel> locations =   resident.getLocation();
-		List<MosipLocationModel> locations_seclang =   resident.getLocation_seclang();
+		Hashtable<String, MosipLocationModel> locations =   resident.getLocation();
+		Hashtable<String, MosipLocationModel> locations_seclang =   resident.getLocation_seclang();
 		
+		Set<String> locationSet =  locations.keySet();
+		
+		Set<String> locationSet_sec =  null;
+		if(locations_seclang != null)
+			locationSet_sec = locations_seclang.keySet();
+			
 		for(MosipIDSchema s: schema) {
 			System.out.println(s.toJSONString());
 			if(s.getId().equalsIgnoreCase("idschemaVersion")) {
@@ -454,7 +461,8 @@ public class PacketTemplateProvider {
 							}
 						}	
 					}
-					for(MosipLocationModel locModel: locations) {
+					for(String locKey:locationSet) {
+						MosipLocationModel locModel = locations.get(locKey);
 		
 						if(s.getId().toLowerCase().endsWith(locModel.getHierarchyName().toLowerCase())  ) {
 							primaryValue = locModel.getName();
@@ -463,7 +471,8 @@ public class PacketTemplateProvider {
 						}
 					}
 					if(locations_seclang != null)			
-					for(MosipLocationModel locModel: locations_seclang) {
+					for(String locKey: locationSet_sec) {
+						MosipLocationModel locModel = locations_seclang.get(locKey);
 							
 						if(s.getId().toLowerCase().endsWith(locModel.getHierarchyName().toLowerCase())  ) {
 							secValue = locModel.getName();

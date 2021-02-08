@@ -10,7 +10,9 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Hashtable;
 import java.util.List;
+import java.util.Set;
 
 import org.mosip.dataprovider.models.MosipDocCategoryModel;
 import org.mosip.dataprovider.models.MosipDocTypeModel;
@@ -91,9 +93,10 @@ public class DocumentProvider {
 		Date dob = df.parse(res.getDob());
 		
 		int age = new Date().getYear() - dob.getYear();
-		List<MosipLocationModel> locs = res.getLocation();
-
-		for( MosipLocationModel loc :locs){
+		Hashtable<String, MosipLocationModel> locs = res.getLocation();
+		Set<String> locKeys = locs.keySet();
+		for(String k: locKeys) {
+			MosipLocationModel loc =locs.get(k);
 			locAddr = locAddr +" "+ loc.getName();
 		}
 		Date datelic = dob;
@@ -128,34 +131,31 @@ public class DocumentProvider {
 		
 		List<MosipDocCategoryModel> docCats =MosipMasterData.getDocumentCategories();
 		for(MosipDocCategoryModel cat: docCats) {
-			if(cat.getIsActive()) {
-	//			System.out.println(cat.toJSONString());
+			List<MosipDocTypeModel> docTypes =null;
+			List<MosipDocTypeModel> allDocTypes= MosipMasterData.getDocumentTypes(cat.getCode(),cat.getLangCode());
+			List<String> catDocs = null;
+			if(allDocTypes != null && !allDocTypes.isEmpty()) {
 				MosipDocument doc = new MosipDocument();
 				doc.setDcoCategoryName(cat.getName());
 				doc.setDocCategoryCode(cat.getCode());
 				doc.setDocCategoryLang(cat.getLangCode());
-				List<MosipDocTypeModel> docTypes = new ArrayList<MosipDocTypeModel>();
-				List<String> catDocs = new ArrayList<String> ();
+				docTypes = new ArrayList<MosipDocTypeModel>();
+				catDocs = new ArrayList<String> ();
 				doc.setType(docTypes);
 				doc.setDocs(catDocs);
-				List<MosipDocTypeModel> allDocTypes= MosipMasterData.getDocumentTypes(cat.getCode(),cat.getLangCode());
-				int i=0;
-				if(allDocTypes != null) {
-					for(MosipDocTypeModel dt: allDocTypes) {
-					//System.out.println(dt.toJSONString());
-						if(dt.getIsActive()) {
-							docTypes.add(dt);
-							catDocs.add( docs.get( i % docs.size()));
-							i++;
-						}
-					}
-					lstDocs.add(doc);
-				}
+				lstDocs.add(doc);	
+			}
+			else
+				continue;
+			int i=0;
+			for(MosipDocTypeModel dt: allDocTypes) {
+				docTypes.add(dt);
+				catDocs.add( docs.get( i % docs.size()));
+				i++;
 			}
 			
 		}
 		 
-	
 		return lstDocs;
 	}
 	

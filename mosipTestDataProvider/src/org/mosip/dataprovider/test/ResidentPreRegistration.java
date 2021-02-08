@@ -88,6 +88,10 @@ public class ResidentPreRegistration {
 		
 			otpTarget = VariableManager.getVariableValue(VariableManager.NS_PREREG, "otpTargetEmail").toString();
 		}
+		String emailTo  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredEmail").toString();
+		if(emailTo != null && !emailTo.equals(""))
+			otpTarget = emailTo;
+		
 		String result = CreatePersona.sendOtpTo(otpTarget);
 		System.out.println(String.format("sendOtp Result %s ",result));
 		return result;
@@ -139,6 +143,10 @@ public class ResidentPreRegistration {
 			otpTarget = person.getContact().getMobileNumber();
 		else
 			otpTarget = person.getContact().getEmailId();
+		
+		String emailTo  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredEmail").toString();
+		if(emailTo != null && !emailTo.equals(""))
+			otpTarget = emailTo;
 		
 		//Override to otp email
 		String bRet  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredOtp").toString();

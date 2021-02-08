@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 
-
+import org.mosip.dataprovider.models.ApplicationConfigIdSchema;
 import org.mosip.dataprovider.models.BiometricDataModel;
 import org.mosip.dataprovider.models.Contact;
 import org.mosip.dataprovider.models.DynamicFieldModel;
@@ -50,7 +50,7 @@ public class ResidentDataProvider {
 		attributeList = new Properties();
 		attributeList.put(ResidentAttribute.RA_Count, 1);
 		attributeList.put(ResidentAttribute.RA_PRIMARAY_LANG, DataProviderConstants.LANG_CODE_ENGLISH);
-		attributeList.put(ResidentAttribute.RA_Country, "MA");
+		attributeList.put(ResidentAttribute.RA_Country, "PHIL");
 		RestClient.clearToken();
 	}
 	//Attribute Value ->'Any','No' or specific value
@@ -140,8 +140,19 @@ public class ResidentDataProvider {
 			names_sec =NameProvider.generateNames(gender, sec_lang, count, names_primary);
 		}
 		List<Contact> contacts = ContactProvider.generate(names_primary, count);
+		Object  objCountry = attributeList.get(ResidentAttribute.RA_Country)  ;
+		String country  =null;
+		
+		if(objCountry != null)
+			country = objCountry.toString();
+		
 		//List<Location> locations = LocationProvider.generate(DataProviderConstants.COUNTRY_CODE, count);
-		Hashtable<String, List<MosipLocationModel>> locations =  LocationProvider.generate( count);
+		//Hashtable<String, List<MosipLocationModel>> locations =  LocationProvider.generate( count, country);
+		
+		ApplicationConfigIdSchema locations = LocationProvider.generate(primary_lang, count);
+		ApplicationConfigIdSchema locations_secLang  = null;
+		if(sec_lang != null)
+			locations_secLang = LocationProvider.generate(sec_lang, count);
 		
 		List<DynamicFieldValueModel> bloodGroups = BloodGroupProvider.generate(count, dynaFields);
 
@@ -195,9 +206,16 @@ public class ResidentDataProvider {
 				if(!skipGaurdian)
 					res.setGuardian( genGuardian(attributeList));
 			}
-			res.setLocation(locations.get(res.getPrimaryLanguage()));
+			res.setAppConfigIdSchema( locations);
+			res.setAppConfigIdSchema_secLang(locations_secLang);
+			
+			res.setLocation(  locations.getTblLocations().get(i));
+			
+			//res.setLocation(locations.get(res.getPrimaryLanguage()));
 			if(res.getSecondaryLanguage() != null)
-					res.setLocation_seclang(locations.get(res.getPrimaryLanguage()));
+				res.setLocation(  locations_secLang.getTblLocations().get(i));
+			
+			//	res.setLocation_seclang(locations.get(res.getPrimaryLanguage()));
 			
 			List<MosipIndividualTypeModel> lstResStatusPrimLang = resStatusList.get( res.getPrimaryLanguage());
 			int indx =0;

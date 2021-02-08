@@ -6,10 +6,13 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Set;
+import java.util.Stack;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.mosip.dataprovider.models.ApplicationConfigIdSchema;
+import org.mosip.dataprovider.models.ApplicationConfigSchemaItem;
 import org.mosip.dataprovider.models.DynamicFieldModel;
 import org.mosip.dataprovider.models.LocationHierarchyModel;
 import org.mosip.dataprovider.models.MosipBiometricAttributeModel;
@@ -21,6 +24,8 @@ import org.mosip.dataprovider.models.MosipIDSchema;
 import org.mosip.dataprovider.models.MosipIndividualTypeModel;
 import org.mosip.dataprovider.models.MosipLanguage;
 import org.mosip.dataprovider.models.MosipLocationModel;
+import org.mosip.dataprovider.models.MosipPreRegLoginConfig;
+import org.mosip.dataprovider.util.CommonUtil;
 import org.mosip.dataprovider.util.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -166,8 +171,12 @@ public  class MosipMasterData {
 		List<MosipLanguage> langs =  getConfiguredLanguages();
 		langs.forEach( (l) ->{
 //			System.out.println(l.getCode() + " "+ l.getName());
-			LocationHierarchyModel[] locationPerLanguage = getLocationHierarchy(l.getCode());
-			locationHierarchies.put(l.getCode(), locationPerLanguage);
+			try {
+				LocationHierarchyModel[] locationPerLanguage = getLocationHierarchy(l.getCode());
+				locationHierarchies.put(l.getCode(), locationPerLanguage);
+			}catch(Exception ex) {
+				ex.printStackTrace();
+			}
 		});
 		return locationHierarchies;
 	}
@@ -246,6 +255,63 @@ public  class MosipMasterData {
 	
 	}
 	
+	public static MosipPreRegLoginConfig getPreregLoginConfig() {
+		MosipPreRegLoginConfig config = new MosipPreRegLoginConfig();
+		String url = VariableManager.getVariableValue("urlBase").toString() +
+				VariableManager.getVariableValue(VariableManager.NS_PREREG,"loginconfig").toString();
+		Object o =getCache(url);
+		if(o != null)
+			return( (MosipPreRegLoginConfig) o);
+
+
+		try {
+			JSONObject resp = RestClient.get(url,new JSONObject() , new JSONObject());
+			//JSONObject configObject = resp.getJSONObject("response");
+			
+			if(resp != null) {
+				config.setMosip_country_code(  resp.getString("mosip.country.code"));
+				config.setMosip_id_validation_identity_dateOfBirth(resp.getString("mosip.id.validation.identity.dateOfBirth"));
+				config.setMosip_primary_language(resp.getString("mosip.primary-language"));
+				config.setPreregistration_documentupload_allowed_file_type(resp.getString("preregistration.documentupload.allowed.file.type"));
+				setCache(url, config);
+			}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return config;
+	}
+
+	public static  ApplicationConfigIdSchema getAppConfigIdSchema() {
+		ApplicationConfigIdSchema config = new ApplicationConfigIdSchema();
+		
+		String url = VariableManager.getVariableValue("urlBase").toString() +
+				VariableManager.getVariableValue(VariableManager.NS_PREREG,"applicaionconfig").toString();
+		Object o =getCache(url);
+		if(o != null)
+			return( (ApplicationConfigIdSchema) o);
+
+
+		try {
+			JSONObject resp = RestClient.get(url,new JSONObject() , new JSONObject());
+			//JSONObject configObject = resp.getJSONObject("response");
+			
+			if(resp != null) {
+				JSONObject idSchemaObject = resp.getJSONObject("idSchema");
+				if(idSchemaObject != null) {
+					ObjectMapper objectMapper = new ObjectMapper();
+					config = objectMapper.readValue(idSchemaObject.toString(), ApplicationConfigIdSchema.class);
+					setCache(url, config);
+				}
+				
+			}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return config;
+	}
+
 	public  static List<MosipLocationModel> getLocationsByLevel(String level) {
 		List<MosipLocationModel> locList = null;
 		
@@ -485,10 +551,128 @@ public  class MosipMasterData {
 				return genderTypeList;
 
 	}
-	public static void main(String[] args) {
-	
+	public static Boolean isExists(List<MosipIDSchema> lst, String val) {
+		for(MosipIDSchema s: lst) {
+			if(s.getId().equalsIgnoreCase(val))
+				return true;
+		}
+		return false;
+	}
+	public static ApplicationConfigIdSchema getPreregLocHierarchy(String primLang, int count) throws Exception {
 
 		
+		MosipPreRegLoginConfig logincConfig = getPreregLoginConfig();
+		String countryCode = logincConfig.getMosip_country_code();
+		String langCode = logincConfig.getMosip_primary_language();
+		if(primLang != null )
+			langCode = primLang;
+	
+		if(countryCode == null || countryCode.equals("")) {
+			throw new Exception("Missing pre-reg-country-code");
+			
+		}
+		ApplicationConfigIdSchema idschema =  new ApplicationConfigIdSchema(); //getAppConfigIdSchema();
+		//"contactType": "Postal"
+		Hashtable<Double, List<MosipIDSchema>> tblSchema = getIDSchemaLatestVersion();
+		List<MosipIDSchema> idSchemaList = tblSchema.get( tblSchema.keys().nextElement());
+		List<MosipIDSchema> locSchemaList = new ArrayList<MosipIDSchema>();
+		for(MosipIDSchema s: idSchemaList) {
+			if(s.getRequired() && s.getControlType() != null && s.getControlType().equals("dropdown") &&
+					( 
+							(s.getContactType() != null && s.getContactType().equals("Postal")) ||
+							(s.getGroup() != null && s.getGroup().equals("Location"))
+					)
+			) {
+				locSchemaList.add(s);
+			}
+		}
+		idschema.setLocationHierarchy(locSchemaList);
+		
+		String levelCode = countryCode;
+		String levelName = "";
+		int idx = 0;
+		
+		List<Hashtable<String, MosipLocationModel>>  tblList = new ArrayList< Hashtable<String, MosipLocationModel>>();
+		List<MosipLocationModel> rootLocs =  getImmedeateChildren(levelCode, langCode);
+		if(rootLocs == null && rootLocs.isEmpty()) {
+			throw new Exception("Invalid pre-reg-country-code  No locations configured");
+
+		}
+		int [] idxArray = CommonUtil.generateRandomNumbers(count, rootLocs.size()-1, 0);
+				
+		for(int i=0; i < count; i++) {
+			Hashtable<String, MosipLocationModel> tbl = new Hashtable<String, MosipLocationModel>();
+			tblList.add(i, tbl);
+			idx = idxArray[i];
+			
+			MosipLocationModel lc = rootLocs.get(idx);
+			levelName = lc.getHierarchyName();
+			
+			tbl.put(levelName, lc);
+			
+			getChildLocations( locSchemaList, langCode,lc.getCode() , levelName, tbl);
+		}
+		
+		idschema.setTblLocations(tblList);
+			
+		return idschema;
+	}
+	static void getChildLocations(List<MosipIDSchema> locHirachyList, String langCode, String levelCode, String levelName, Hashtable<String, MosipLocationModel> tbl) {
+
+		int idx=0;
+		Stack<List<MosipLocationModel>> stk = new Stack<List<MosipLocationModel>>();
+		
+		while( isExists(locHirachyList, levelName)) {
+				//MosipLocationModel lcParent = tbl.get(preLevel);
+			List<MosipLocationModel> rootLocs =  getImmedeateChildren(levelCode, langCode);
+			if(rootLocs == null) {
+				rootLocs = stk.pop();
+				idx++;
+			}
+			if(rootLocs != null && !rootLocs.isEmpty()) {
+				if(idx >= rootLocs.size())
+					break;
+				MosipLocationModel lc = rootLocs.get(idx );
+				stk.push(rootLocs)	;
+				levelName = lc.getHierarchyName();
+				tbl.put(levelName, lc);
+				
+				levelCode = lc.getCode();
+			}
+			else
+				break;
+		}
+			
+		
+	}
+	public static void main(String[] args) {
+	
+		ApplicationConfigIdSchema ss;
+		try {
+			ss = getPreregLocHierarchy("eng",1);
+			System.out.println(ss.toJSONString());
+			
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		System.exit(0);
+		
+		 
+		//MosipPreRegLoginConfig c1 =  MosipMasterData.getPreregLoginConfig();
+		//ApplicationConfigIdSchema idschma =	MosipMasterData.getAppConfigIdSchema();
+		//System.out.println(idschma.toJSONString());
+									 
+		Hashtable<Double, List<MosipIDSchema>>  schema = MosipMasterData.getIDSchemaLatestVersion();
+		Set<Double> schemaIds = schema.keySet();
+		Double schemVersion = schema.keySet().iterator().next();
+		
+		for( MosipIDSchema idschema: schema.get( schemVersion)) {
+			System.out.println(idschema.toJSONString());
+		}
+
+
+		if(0 ==1) {
 			
 		HashMap<String,LocationHierarchyModel[]> locHi = getAllLocationHierarchies();
 		
@@ -504,7 +688,6 @@ public  class MosipMasterData {
 			}
 			
 		}
-		if(0 ==1) {
 			Hashtable<String, List<MosipIndividualTypeModel>>indTypes =  getIndividualTypes();
 			List<MosipDocCategoryModel> docCat =getDocumentCategories();
 			

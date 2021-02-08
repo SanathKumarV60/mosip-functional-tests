@@ -3,10 +3,15 @@ package org.mosip.dataprovider.test;
 import java.time.LocalDateTime;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.mosip.dataprovider.models.ApplicationConfigIdSchema;
+import org.mosip.dataprovider.models.ApplicationConfigSchemaItem;
+import org.mosip.dataprovider.models.DynamicFieldModel;
 import org.mosip.dataprovider.models.MosipGenderModel;
 import org.mosip.dataprovider.models.MosipIDSchema;
 import org.mosip.dataprovider.models.MosipLocationModel;
@@ -25,7 +30,263 @@ public class CreatePersona {
 		tbl = MosipMasterData.getIDSchemaLatestVersion();
 	}
 	
+
+	public static JSONObject constructNode(JSONObject identity, String Id, String primLang, String secLang, String primVal, String secVal, Boolean bSimpleType) {
+		JSONObject obj = new JSONObject();
+		JSONArray array  = new JSONArray();
+		
+		obj.put("language", primLang);
+		obj.put("value", primVal);
+		
+		if(bSimpleType){
+			array.put(0, obj);
+			
+			if(secLang != null) {	
+				obj = new JSONObject();
+				obj.put("language", secLang);
+				obj.put("value", secVal);
+				array.put(1, obj);
+			}
+			identity.put(Id, array);
+		}
+		else
+			identity.put(Id, obj.get("value"));
+		
+		return identity;
+	}
+	
 	public static JSONObject crateIdentity(ResidentModel resident) {
+
+		Double schemaversion = tbl.keys().nextElement();
+		List<MosipIDSchema>  lstSchema =tbl.get(schemaversion);
+		
+		JSONObject identity = new JSONObject();
+
+		Hashtable<String, MosipLocationModel> locations =   resident.getLocation();
+		Set<String> locationSet =  locations.keySet();
+		
+		ApplicationConfigIdSchema idSchema =  resident.getAppConfigIdSchema();
+		//List<ApplicationConfigSchemaItem> lstSchema =   idSchema.getIdentity();
+		List<DynamicFieldModel> dynaFields = resident.getDynaFields();
+		List<MosipGenderModel> genderTypes = resident.getGenderTypes();
+		
+		identity.put("IDSchemaVersion",schemaversion );	
+		//ApplicationConfigSchemaItem schemaItem = null;
+		for(MosipIDSchema schemaItem: lstSchema) {
+			//skip document types
+			if(schemaItem.getRequired() && schemaItem.getType() != null &&
+				( schemaItem.getContactType() != null  || schemaItem.getGroup() != null)
+					
+			){
+				if(schemaItem.getControlType().equals("dropdown")) {
+					if(schemaItem.getFieldType().equals("dynamic")) {
+						for(DynamicFieldModel dfm: dynaFields) {
+							if(dfm.getActive() && dfm.getId().equals(schemaItem.getId())) {
+
+								constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(), resident.getSecondaryLanguage(),
+											dfm.getFieldVal().get(0).getValue(),
+											dfm.getFieldVal().get(0).getValue(),
+											schemaItem.getType().equals("simpleType") ? true: false
+											);
+								break;
+							}
+						}
+					}
+					//known lookups
+					else {
+						if(schemaItem.getId().toLowerCase().equals("gender") ||schemaItem.getId().toLowerCase().equals("sex") ) {
+							
+							String primLang = resident.getPrimaryLanguage();
+							String secLan = resident.getSecondaryLanguage();
+							String resGen = resident.getGender();
+							String primVal = "";
+							String secVal = "";
+							for(MosipGenderModel g: genderTypes) {
+								if(!g.getIsActive())
+									continue;
+								if(g.getGenderName().equals(resGen)) {
+
+									if(g.getLangCode().equals(primLang) ) {
+										primVal = g.getCode();
+									}
+									else
+									if(secLan != null && g.getLangCode().equals(secLan) ) {
+											
+										secVal =  g.getCode();
+									
+									}
+								}
+							}
+							constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(), resident.getSecondaryLanguage(),
+									primVal,
+									secVal,
+									schemaItem.getType().equals("simpleType") ? true: false
+							);
+	
+							
+						}
+						else
+						if(schemaItem.getId().toLowerCase().contains("residen")  ) {
+							String name = resident.getResidentStatus().getCode() ;
+
+							constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+											resident.getSecondaryLanguage(),
+											name,
+											name,
+											schemaItem.getType().equals("simpleType") ? true: false
+							);
+									
+						}
+						/* check with location details */
+						else {
+							
+							for(String locLevel: locationSet) {
+						
+								if(schemaItem.getId().toLowerCase().contains(locLevel.toLowerCase())) {
+									constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+											resident.getSecondaryLanguage(),
+											locations.get(locLevel).getCode(),
+											locations.get(locLevel).getCode(),
+											schemaItem.getType().equals("simpleType") ? true: false
+									);
+									break;
+								}
+							}
+						}
+					}
+				}
+				else 
+				if(schemaItem.getId().toLowerCase().equals("fullname")) {
+					String name = resident.getName().getFirstName() +" " + resident.getName().getMidName()+ " "+ resident.getName().getSurName();
+					String name_sec="";
+					if(resident.getSecondaryLanguage() != null)
+						name_sec = resident.getName_seclang().getFirstName() +" "+ resident.getName_seclang().getMidName() + " "+ resident.getName_seclang().getSurName();
+						
+					constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+						resident.getSecondaryLanguage(),
+						name,
+						name_sec,
+						schemaItem.getType().equals("simpleType") ? true: false
+					);
+				}
+				else
+				if(schemaItem.getId().toLowerCase().equals("firstname") ||
+						schemaItem.getId().toLowerCase().equals("lastname") ||
+						schemaItem.getId().toLowerCase().equals("middlename") 
+				) {
+					
+					String name = "";
+					String name_sec="";
+					
+					if(schemaItem.getId().toLowerCase().equals("firstname")) {
+						name = resident.getName().getFirstName() ;
+						if(resident.getSecondaryLanguage() != null)
+							name_sec = resident.getName_seclang().getFirstName();
+					}
+					else
+					if(schemaItem.getId().toLowerCase().equals("lastname")) {
+						name = resident.getName().getSurName() ;
+						if(resident.getSecondaryLanguage() != null)
+							name_sec = resident.getName_seclang().getSurName();
+					}	
+					else
+					if(schemaItem.getId().toLowerCase().equals("middlename")) {
+							name = resident.getName().getMidName() ;
+							if(resident.getSecondaryLanguage() != null)
+								name_sec = resident.getName_seclang().getMidName();
+					}
+					constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+							resident.getSecondaryLanguage(),
+							name,
+							name_sec,
+							schemaItem.getType().equals("simpleType") ? true: false
+					);
+				}	
+				else
+				if(schemaItem.getId().toLowerCase().contains("address")) {
+				
+					String addr = "";
+					String addr_sec="";
+					Random rand = new Random();
+					
+					addr = "#%d, %d Street, %d block" + schemaItem.getId();
+					addr = String.format(addr, (100+ rand.nextInt(999)),
+							(1 + rand.nextInt(99)),
+							(1 + rand.nextInt(10))
+							);
+					if(resident.getSecondaryLanguage() != null)
+						addr_sec =Translator.translate(resident.getSecondaryLanguage(),addr);
+					constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+							resident.getSecondaryLanguage(),
+							addr,
+							addr_sec,
+							schemaItem.getType().equals("simpleType") ? true: false
+					);
+				}
+				else
+				if(schemaItem.getId().toLowerCase().equals("dateofbirth") ||schemaItem.getId().toLowerCase().equals("dob") || schemaItem.getId().toLowerCase().equals("birthdate") ) {
+						
+						//should be informat yyyy/mm/dd
+						//SimpleDateFormat formatter = new SimpleDateFormat("yyyy/MM/dd");  
+						String strDate= resident.getDob();
+						constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+								resident.getSecondaryLanguage(),
+								strDate,
+								strDate,
+								schemaItem.getType().equals("simpleType") ? true: false
+						);
+				}
+				else
+				if(schemaItem.getId().toLowerCase().contains("phone") || schemaItem.getId().toLowerCase().contains("mobile") ) {
+					String mobileNo =   resident.getContact().getMobileNumber();
+					constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+							resident.getSecondaryLanguage(),
+							mobileNo,
+							mobileNo,
+							schemaItem.getType().equals("simpleType") ? true: false
+					);
+					
+				}
+				else
+				if(schemaItem.getId().toLowerCase().contains("email") || schemaItem.getId().toLowerCase().contains("mail") ) {
+						
+						String emailId =   resident.getContact().getEmailId();
+						constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+								resident.getSecondaryLanguage(),
+								emailId,
+								emailId,
+								schemaItem.getType().equals("simpleType") ? true: false
+						);
+				}
+				else
+				if(schemaItem.getId().toLowerCase().contains("referenceIdentity") ) {
+						String id = resident.getId();	
+						constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+								resident.getSecondaryLanguage(),
+								id,
+								id,
+								schemaItem.getType().equals("simpleType") ? true: false
+						);
+						
+				}
+			}
+			else
+			if(schemaItem.getRequired()) {
+				String someVal = CommonUtil.generateRandomString(schemaItem.getMaximum());
+				constructNode(identity, schemaItem.getId(), resident.getPrimaryLanguage(),
+						resident.getSecondaryLanguage(),
+						someVal,
+						someVal,
+						schemaItem.getType().equals("simpleType") ? true: false
+				);
+		
+			}
+		}
+		return identity;
+		
+		
+	}
+	public static JSONObject crateIdentity_old(ResidentModel resident) {
 
 		//columns which are not arrays -IDSchemaVersion,Phone, email
 		
@@ -35,9 +296,13 @@ public class CreatePersona {
 		Double schemaversion = tbl.keys().nextElement();
 		List<MosipIDSchema> schemas = tbl.get(schemaversion);
 
-		List<MosipLocationModel> locations =   resident.getLocation();
-		List<MosipLocationModel> locations_seclang =   resident.getLocation_seclang();
-
+		Hashtable<String, MosipLocationModel> locations =   resident.getLocation();
+		Set<String> locationSet =  locations.keySet();
+		
+		
+		Hashtable<String, MosipLocationModel> locations_seclang =   resident.getLocation_seclang();
+		Set<String> locationSet_sec = locations_seclang.keySet();
+		
 		List<MosipGenderModel> genderTypes = resident.getGenderTypes();
 		
 		for(MosipIDSchema schema:schemas ) {
@@ -169,7 +434,7 @@ public class CreatePersona {
 						identity.put(schema.getId(), array.getJSONObject(0).get("value"));
 				}
 				else
-					if(schema.getId().toLowerCase().equals("dateofbirth") ||schema.getId().toLowerCase().equals("dob") || schema.getId().toLowerCase().equals("birthdate") ) {
+				if(schema.getId().toLowerCase().equals("dateofbirth") ||schema.getId().toLowerCase().equals("dob") || schema.getId().toLowerCase().equals("birthdate") ) {
 					
 					//should be informat yyyy/mm/dd
 					//SimpleDateFormat formatter = new SimpleDateFormat("yyyy/MM/dd");  
@@ -251,7 +516,8 @@ public class CreatePersona {
 				// construct as per location hierarchy
 				array = new JSONArray();
 				Boolean bFound= false;
-				for(MosipLocationModel locModel: locations) {
+				for(String locLevel:locationSet) {
+					MosipLocationModel locModel = locations.get(locLevel);
 					
 					System.out.println("Schema.id="+ schema.getId() + "== locModel[" + locModel.getHierarchyLevel() + "]=" +locModel.getHierarchyName());
 				
@@ -266,7 +532,8 @@ public class CreatePersona {
 					}
 				}
 				if(locations_seclang != null)			
-				for(MosipLocationModel locModel: locations_seclang) {
+				for(String locLevel:locationSet_sec) {
+					MosipLocationModel locModel = locations.get(locLevel);
 					
 					if(schema.getId().equalsIgnoreCase(locModel.getHierarchyName())  ) {
 						obj = new JSONObject();

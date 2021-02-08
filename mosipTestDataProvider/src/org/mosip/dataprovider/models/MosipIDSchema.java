@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.Data;
 @Data
-@JsonIgnoreProperties({"visible","validators","requiredOn","bioAttributes","controlType","label","changeAction"})
+@JsonIgnoreProperties({"visible","validators","requiredOn","label","changeAction","bioAttributes"})
 public class MosipIDSchema  implements Serializable{
 
 	 private static final long serialVersionUID = 1L;
@@ -22,6 +22,8 @@ public class MosipIDSchema  implements Serializable{
 	Boolean required ;
 	Boolean inputRequired;
 	String fieldCategory ;
+	//String bioAttributes;
+	String controlType;
 	int maximum;
 	int minimum ;
 	

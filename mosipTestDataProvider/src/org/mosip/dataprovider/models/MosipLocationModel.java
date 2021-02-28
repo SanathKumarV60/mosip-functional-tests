@@ -17,8 +17,8 @@ public class MosipLocationModel  implements Serializable{
 	
 
 	public void setHierarchyName(String hierarchyName) {
-		if(hierarchyName.equals("Postal Code"))
-			hierarchyName ="postalCode";
+		//if(hierarchyName.equals("Postal Code"))
+		//	hierarchyName ="postalCode";
 		this.hierarchyName = hierarchyName;
 	}
 

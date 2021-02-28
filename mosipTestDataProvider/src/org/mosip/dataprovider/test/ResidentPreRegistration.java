@@ -25,13 +25,10 @@ import variables.VariableManager;
 
 public class ResidentPreRegistration {
 
-	//static RestClient restClient;
+
 	String preRegID;
 	ResidentModel person;
 	String otpTarget;
-//	static {
-//		restClient = new RestClient();
-//	}
 	public ResidentPreRegistration() {
 		
 	}
@@ -82,13 +79,13 @@ public class ResidentPreRegistration {
 			otpTarget = person.getContact().getEmailId();
 		
 		//Override to otp email
-		String bRet  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredOtp").toString();
+		String bRet  = VariableManager.getVariableValue( "usePreConfiguredOtp").toString();
 		
 		if(bRet.contains("false")){
 		
-			otpTarget = VariableManager.getVariableValue(VariableManager.NS_PREREG, "otpTargetEmail").toString();
+			otpTarget = VariableManager.getVariableValue( "otpTargetEmail").toString();
 		}
-		String emailTo  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredEmail").toString();
+		String emailTo  = VariableManager.getVariableValue( "usePreConfiguredEmail").toString();
 		if(emailTo != null && !emailTo.equals(""))
 			otpTarget = emailTo;
 		
@@ -101,7 +98,7 @@ public class ResidentPreRegistration {
 		
 		String otp ="111111";
 		
-		String bRet  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredOtp").toString();
+		String bRet  = VariableManager.getVariableValue( "usePreConfiguredOtp").toString();
 		
 		if(bRet.contains("false")){
 			//do a wait
@@ -122,14 +119,14 @@ public class ResidentPreRegistration {
 			}
 		}
 		else
-			otp = VariableManager.getVariableValue(VariableManager.NS_PREREG, "preconfiguredOtp").toString();
+			otp = VariableManager.getVariableValue( "preconfiguredOtp").toString();
 		
-		VariableManager.setVariableValue(VariableManager.NS_PREREG, "email_otp", otp);
+		VariableManager.setVariableValue( "email_otp", otp);
 	}
 	@Then("^verify otp \"(.*)\"$") 
 	public String VerifyOtp(String otp)  {
 		if(otp == null || otp.equals(""))
-			otp =VariableManager.getVariableValue(VariableManager.NS_PREREG, "email_otp").toString();
+			otp =VariableManager.getVariableValue( "email_otp").toString();
 	
 	
 		return CreatePersona.validateOTP(otp, otpTarget);
@@ -137,23 +134,23 @@ public class ResidentPreRegistration {
 	public String verifyOtp(String to, String otp) {
 
 		if(otp == null || otp.equals(""))
-			otp =VariableManager.getVariableValue(VariableManager.NS_PREREG, "email_otp").toString();
+			otp =VariableManager.getVariableValue( "email_otp").toString();
 
 		if(to.equals("phone"))
 			otpTarget = person.getContact().getMobileNumber();
 		else
 			otpTarget = person.getContact().getEmailId();
 		
-		String emailTo  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredEmail").toString();
+		String emailTo  = VariableManager.getVariableValue( "usePreConfiguredEmail").toString();
 		if(emailTo != null && !emailTo.equals(""))
 			otpTarget = emailTo;
 		
 		//Override to otp email
-		String bRet  = VariableManager.getVariableValue(VariableManager.NS_PREREG, "usePreConfiguredOtp").toString();
+		String bRet  = VariableManager.getVariableValue( "usePreConfiguredOtp").toString();
 		
 		if(bRet.contains("false")){
 		
-			otpTarget = VariableManager.getVariableValue(VariableManager.NS_PREREG, "otpTargetEmail").toString();
+			otpTarget = VariableManager.getVariableValue( "otpTargetEmail").toString();
 		}
 		return CreatePersona.validateOTP(otp, otpTarget);
 	}
@@ -161,7 +158,7 @@ public class ResidentPreRegistration {
 	public void PreRegisterAdultMale() throws JSONException { 
 		System.out.println("PreRegisterAdultMale");
 	
-		String result = PreRegistrationSteps.postApplication(person);
+		String result = PreRegistrationSteps.postApplication(person,null);
 		preRegID = result;
 		System.out.println(String.format("PreRegisterAdultMale Result %s ",result));
 		
@@ -173,7 +170,7 @@ public class ResidentPreRegistration {
 		 System.out.println("uploadProof " + docCategory);
 		 int i=0;
 		 for(MosipDocument a:person.getDocuments()) {
-			 PreRegistrationSteps.UploadDocument(a.getDcoCategoryName(),
+			 PreRegistrationSteps.UploadDocument(a.getDocCategoryCode(),
 					 a.getType().get(i).getCode(),
 					 a.getDocCategoryLang(), a.getDocs().get(i) ,preRegID);
 			 break;

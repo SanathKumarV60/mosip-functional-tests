@@ -17,6 +17,7 @@ import java.util.Set;
 import org.mosip.dataprovider.models.MosipDocCategoryModel;
 import org.mosip.dataprovider.models.MosipDocTypeModel;
 import org.mosip.dataprovider.models.MosipDocument;
+import org.mosip.dataprovider.models.MosipIDSchema;
 import org.mosip.dataprovider.models.MosipLocationModel;
 import org.mosip.dataprovider.models.ResidentModel;
 import org.mosip.dataprovider.preparation.MosipMasterData;
@@ -83,9 +84,30 @@ public class DocumentProvider {
 
 	    outputStream.close();
 	}
+	 public static List<MosipIDSchema> getDocTypesFromSchema(){
+		List<MosipIDSchema> docSchema = new ArrayList<MosipIDSchema>();
+		 
+		 Hashtable<Double, List<MosipIDSchema>>  schema = MosipMasterData.getIDSchemaLatestVersion();
+		Double schemVersion = schema.keySet().iterator().next();
+			
+		for( MosipIDSchema schemaItem: schema.get( schemVersion)) {
+			if(!schemaItem.getRequired() && !schemaItem.getInputRequired()) {
+				continue;
+			}
+			if( schemaItem.getType() != null && schemaItem.getType().equals("documentType") ) {
+				docSchema.add(schemaItem);
+			}
+		}
+		return docSchema;
+	 }
+	 public static MosipDocCategoryModel getDocCategoryByType(String docType, List<MosipDocCategoryModel> docCats) {
+		 for(MosipDocCategoryModel m: docCats) {
+			 if(m.getIsActive() && m.getCode().equals(docType))
+				 return m;
+		 }
+		 return null;
+	 }
 	public static List<MosipDocument>  generateDocuments(ResidentModel res) throws DocumentException, IOException, ParseException{
-	
-
 		List<String> docs = new ArrayList<String>();
 		
 		String locAddr = "";
@@ -128,7 +150,39 @@ public class DocumentProvider {
 		 * docs as per template
 		 */
 		List<MosipDocument> lstDocs = new ArrayList<MosipDocument>();
+		List<MosipDocCategoryModel> docCats =MosipMasterData.getDocumentCategories();
+		List<MosipIDSchema> lstSchema =getDocTypesFromSchema();
+			
+		for(MosipIDSchema schema: lstSchema) {
+			
+			MosipDocCategoryModel catModel =  getDocCategoryByType( schema.getSubType(), docCats);
+			if(catModel == null)
+				continue;
+			List<MosipDocTypeModel> docTypes =null;
+			List<MosipDocTypeModel> allDocTypes= MosipMasterData.getDocumentTypes(catModel.getCode(), catModel.getLangCode());
+			List<String> catDocs = null;
+			if(allDocTypes != null && !allDocTypes.isEmpty()) {
+				MosipDocument doc = new MosipDocument();
+				doc.setDcoCategoryName(catModel.getName());
+				doc.setDocCategoryCode(catModel.getCode());
+				doc.setDocCategoryLang(catModel.getLangCode());
+				docTypes = new ArrayList<MosipDocTypeModel>();
+				catDocs = new ArrayList<String> ();
+				doc.setType(docTypes);
+				doc.setDocs(catDocs);
+				lstDocs.add(doc);	
+			}
+			else
+				continue;
+			int i=0;
+			for(MosipDocTypeModel dt: allDocTypes) {
+				docTypes.add(dt);
+				catDocs.add( docs.get( i % docs.size()));
+				i++;
+			}
 		
+		}
+		/*
 		List<MosipDocCategoryModel> docCats =MosipMasterData.getDocumentCategories();
 		for(MosipDocCategoryModel cat: docCats) {
 			List<MosipDocTypeModel> docTypes =null;
@@ -154,21 +208,22 @@ public class DocumentProvider {
 				i++;
 			}
 			
-		}
+		}*/
 		 
 		return lstDocs;
 	}
 	
 	public static void main(String[] args) {
 		
-		
-		String photo = PhotoProvider.getPhoto(1, "female");
-		String html = parseThymeleafTemplatePassport(photo,"Angel","01/12/2025", "Some where on this planet , on earth");
+	/*	
+		byte[][]photo = PhotoProvider.getPhoto(1, "female");
+		String html = parseThymeleafTemplatePassport(photo[0],"Angel","01/12/2025", "Some where on this planet , on earth");
 		try {
 			generatePdfFromHtml(html,new File("out.pdf"));
 		} catch (DocumentException | IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		*/
 	}
 }
